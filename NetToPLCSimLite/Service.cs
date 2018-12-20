@@ -24,6 +24,7 @@ namespace NetToPLCSim
 
         public Config m_Conf = new Config();
         public List<IsoToS7online> m_servers = new List<IsoToS7online>();
+        public int ServerCount => m_servers.Count;
 
         public bool StopService(string serviceName, int timeoutMilliseconds)
         {
