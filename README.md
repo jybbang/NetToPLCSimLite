@@ -10,10 +10,6 @@ See LICENSE.txt for the GNU LESSER GENERAL PUBLIC LICENSE Version 3
 NetToPLCsim, Netzwerkanbindung fuer PLCSIM
 ---
 IsoOnTcpServer/*  
-NetToPLCSimLite/Config.cs  
-NetToPLCSimLite/Service.cs  
-NetToPLCSimLite/StationData.cs  
-NetToPLCSimLite/StationStatus.cs  
 
 Copyright (C) 2011-2016 Thomas Wiens, th.wiens@gmx.de
 NetToPLCsim is free software: you can redistribute it and/or modify

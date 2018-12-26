@@ -11,20 +11,22 @@
  * License, or (at your option) any later version.
  /*********************************************************************/
 
+using PlcsimS7online;
 using System;
 using System.Collections.Generic;
-using System.Net;
-using System.Threading;
-using TcpLib;
-using PlcsimS7online;
-using System.Runtime.InteropServices;
 using System.Diagnostics;
+using System.Net;
+using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
+using TcpLib;
 
 namespace IsoOnTcp
 {
     public class IsoToS7online : IDisposable
     {
+        public Action<byte[]> DataReceived;
+
         private TcpServer m_Server;
         private IsoServiceProvider m_Provider;
         private bool m_enableTsapCheck;
@@ -155,6 +157,10 @@ namespace IsoOnTcp
             {
                 client.IsoSend(client.client, res);
             }
+
+            // to ProSIM
+            DataReceived?.Invoke(data);
+            //if (DataReceived != null) DataReceived(m_Provider.m_PlcsimIpAdress.ToString(), data);
         }
 
         // delegate an event for monitor output
@@ -250,59 +256,59 @@ namespace IsoOnTcp
 
         public override void OnReceiveData(ConnectionState state)
         {
-                client = state;
-                byte[] buffer = new byte[1460];
-                int tpktlen = 0;
+            client = state;
+            byte[] buffer = new byte[1460];
+            int tpktlen = 0;
 
-                while (state.AvailableData > 0)
+            while (state.AvailableData > 0)
+            {
+                int readBytes;
+                // Read length from TPKT header first
+                readBytes = client.Read(buffer, 0, 4);
+                if (readBytes > 0)
                 {
-                    int readBytes;
-                    // Read length from TPKT header first
-                    readBytes = client.Read(buffer, 0, 4);
-                    if (readBytes > 0)
+                    // TPKT Header
+                    if (buffer[0] == 3 && buffer[1] == 0)   // Version = 3 / Reserved = 0
                     {
-                        // TPKT Header
-                        if (buffer[0] == 3 && buffer[1] == 0)   // Version = 3 / Reserved = 0
+                        if (BitConverter.IsLittleEndian)
                         {
-                            if (BitConverter.IsLittleEndian)
-                            {
-                                tpktlen = ByteConvert.DoReverseEndian(BitConverter.ToUInt16(buffer, 2));
-                            }
-                            else
-                            {
-                                tpktlen = BitConverter.ToUInt16(buffer, 2);
-                            }
-                            // try to read the TPDU to offset 4 in buffer, this is the length from TPKT minus length of TPKT header
-                            readBytes = client.Read(buffer, 4, tpktlen - 4);
+                            tpktlen = ByteConvert.DoReverseEndian(BitConverter.ToUInt16(buffer, 2));
                         }
                         else
                         {
-                            // Wrong TPKT header
-                            client.EndConnection();
-                            return;
+                            tpktlen = BitConverter.ToUInt16(buffer, 2);
                         }
-                    }
-                    // If TDPU could be read completely
-                    if (readBytes == (tpktlen - 4))
-                    {
-                        try
-                        {
-                            ISOsrv.Process(this, buffer, readBytes + 4);
-                            if (ISOsrv.Connected == false)
-                            {
-                                client.EndConnection();
-                            }
-                        }
-                        catch
-                        {
-                            client.EndConnection();
-                        }
+                        // try to read the TPDU to offset 4 in buffer, this is the length from TPKT minus length of TPKT header
+                        readBytes = client.Read(buffer, 4, tpktlen - 4);
                     }
                     else
+                    {
+                        // Wrong TPKT header
+                        client.EndConnection();
+                        return;
+                    }
+                }
+                // If TDPU could be read completely
+                if (readBytes == (tpktlen - 4))
+                {
+                    try
+                    {
+                        ISOsrv.Process(this, buffer, readBytes + 4);
+                        if (ISOsrv.Connected == false)
+                        {
+                            client.EndConnection();
+                        }
+                    }
+                    catch
                     {
                         client.EndConnection();
                     }
                 }
+                else
+                {
+                    client.EndConnection();
+                }
+            }
         }
 
         public override void OnAcceptConnection(ConnectionState state)
@@ -342,19 +348,19 @@ namespace IsoOnTcp
 
         public void SendDataToPlcsim(PlcS7onlineMsgPump.WndProcMessage msg)
         {
-                Int32 length = msg.pdu.Length + 4;
-                byte[] buffer = new byte[length];
+            Int32 length = msg.pdu.Length + 4;
+            byte[] buffer = new byte[length];
 
-                byte[] pduLengthBytes = BitConverter.GetBytes(msg.pdulength);
-                Buffer.BlockCopy(pduLengthBytes, 0, buffer, 0, pduLengthBytes.Length);
-                Buffer.BlockCopy(msg.pdu, 0, buffer, pduLengthBytes.Length, msg.pdu.Length);
+            byte[] pduLengthBytes = BitConverter.GetBytes(msg.pdulength);
+            Buffer.BlockCopy(pduLengthBytes, 0, buffer, 0, pduLengthBytes.Length);
+            Buffer.BlockCopy(msg.pdu, 0, buffer, pduLengthBytes.Length, msg.pdu.Length);
 
-                IntPtr ptr = Marshal.AllocHGlobal(length);
-                Marshal.Copy(buffer, 0, ptr, length);
+            IntPtr ptr = Marshal.AllocHGlobal(length);
+            Marshal.Copy(buffer, 0, ptr, length);
 
-                SendMessage(m_PlcS7onlineMsgPump_Handle, PlcS7onlineMsgPump.WM_M_SENDDATA, IntPtr.Zero, ptr);
+            SendMessage(m_PlcS7onlineMsgPump_Handle, PlcS7onlineMsgPump.WM_M_SENDDATA, IntPtr.Zero, ptr);
 
-                Marshal.FreeHGlobal(ptr);
+            Marshal.FreeHGlobal(ptr);
         }
 
         public void StartPlcS7onlineMsgPump(PlcsimProtocolType plcsimVersion)
