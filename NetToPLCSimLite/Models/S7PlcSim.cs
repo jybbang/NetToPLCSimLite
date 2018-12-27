@@ -62,7 +62,7 @@ namespace NetToPLCSimLite.Models
         {
             try
             {
-                if (Instance < 0 || Instance > 8) return false;
+                if (Instance < 1 || Instance > 8) return false;
                 Disconnect();
 
                 log.Info($"CONNECTING, Name:{Name}, IP:{PlcIp}, INS:{PlcPath}");
@@ -80,7 +80,6 @@ namespace NetToPLCSimLite.Models
                     timer.Elapsed += Timer_Elapsed;
                     timer.Interval = 1000;
                     timer.Start();
-
                     log.Info($"OK, Name:{Name}, IP:{PlcIp}, INS:{PlcPath}");
                 }
                 log.Warn($"NG, Name:{Name}, IP:{PlcIp}, INS:{PlcPath}");
@@ -88,7 +87,7 @@ namespace NetToPLCSimLite.Models
             catch (Exception ex)
             {
                 Disconnect();
-                log.Warn($"ERR, Name:{Name}, IP:{PlcIp}, INS:{PlcPath}, {ex.Message}");
+                log.Error($"ERR, Name:{Name}, IP:{PlcIp}, INS:{PlcPath}", ex);
             }
 
             return IsConnected;
@@ -104,6 +103,7 @@ namespace NetToPLCSimLite.Models
                 plcsim.ConnectionError -= Plcsim_ConnectionError;
                 plcsim.Disconnect();
                 IsConnected = false;
+                IsStarted = false;
                 log.Info($"DISCONNECTED, Name:{Name}, IP:{PlcIp}, INS:{Instance}");
             }
         }
@@ -111,7 +111,6 @@ namespace NetToPLCSimLite.Models
         public void DataReceived(byte[] received)
         {
             if (!IsConnected) return;
-
             try
             {
                 queue.Enqueue(received);
@@ -171,7 +170,7 @@ namespace NetToPLCSimLite.Models
             }
             catch (Exception ex)
             {
-                //Disconnect();
+                Disconnect();
                 log.Error(nameof(DataReceived), ex);
             }
         }
