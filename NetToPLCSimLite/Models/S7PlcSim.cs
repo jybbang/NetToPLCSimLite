@@ -10,7 +10,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Timers;
 
-namespace NetToPLCSimLite.Services
+namespace NetToPLCSimLite.Models
 {
     public enum StationCpu
     {
@@ -61,6 +61,7 @@ namespace NetToPLCSimLite.Services
             try
             {
                 if (Instance < 0 || Instance > 8) return false;
+                Disconnect();
 
                 log.Info($"CONNECTING, Name:{Name}, IP:{PlcIp}, INS:{PlcPath}");
                 plcsim.ConnectionError -= Plcsim_ConnectionError;
@@ -101,66 +102,66 @@ namespace NetToPLCSimLite.Services
                 plcsim.ConnectionError -= Plcsim_ConnectionError;
                 plcsim.Disconnect();
                 IsConnected = false;
+                log.Info($"DISCONNECTED, Name:{Name}, IP:{PlcIp}, INS:{Instance}");
             }
-            log.Info($"DISCONNECTED, Name:{Name}, IP:{PlcIp}, INS:{Instance}");
         }
 
         public void DataReceived(byte[] received)
         {
             if (!IsConnected) return;
-            //if (ip != PlcSimIp) return;
 
             try
             {
                 queue.Enqueue(received);
                 while (!queue.IsEmpty)
                 {
-                    queue.TryDequeue(out byte[] data);
-
-                    // INPUT, WRITE
-                    var len = data.Length - 28;
-                    if (len > 0 && data[0] == 0x32 && data[1] == 0x01 && data[10] == 0x05 && data[14] == 0x10 && data[20] == 0x81)
+                    if (queue.TryDequeue(out byte[] data))
                     {
-                        // address
-                        byte[] aa = new byte[4] { 0, data[21], data[22], data[23] };
-                        var addr = BitConverter.ToInt32(aa, 0);
-                        addr = BitConverter.IsLittleEndian ? IPAddress.HostToNetworkOrder(addr) : addr;
-                        var bytepos = addr / 8;
-                        var bitpos = addr % 8;
+                        // INPUT, WRITE
+                        var len = data.Length - 28;
+                        if (len > 0 && data[0] == 0x32 && data[1] == 0x01 && data[10] == 0x05 && data[14] == 0x10 && data[20] == 0x81)
+                        {
+                            // address
+                            byte[] aa = new byte[4] { 0, data[21], data[22], data[23] };
+                            var addr = BitConverter.ToInt32(aa, 0);
+                            addr = BitConverter.IsLittleEndian ? IPAddress.HostToNetworkOrder(addr) : addr;
+                            var bytepos = addr / 8;
+                            var bitpos = addr % 8;
 
-                        var t_size = data[15];
-                        if (t_size == S7COMM_TRANSPORT_SIZE_BIT)
-                        {
-                            var set = data[28] == 0 ? false : true;
-                            plcsim.WriteInputPoint(bytepos, bitpos, set);
-                            log.Debug($" >> [IP:{PlcIp},{Instance}] I{bytepos}.{bitpos} ({set})");
-                        }
-                        else if (t_size == S7COMM_TRANSPORT_SIZE_BYTE)
-                        {
-                            if (len == 1)
+                            var t_size = data[15];
+                            if (t_size == S7COMM_TRANSPORT_SIZE_BIT)
                             {
-                                var set = data[28];
-                                plcsim.WriteInputPoint(bytepos, 0, set);
-                                log.Debug($" >> [IP:{PlcIp}:{Instance}] IB{bytepos} ({set})");
+                                var set = data[28] == 0 ? false : true;
+                                plcsim.WriteInputPoint(bytepos, bitpos, set);
+                                log.Debug($" >> [IP:{PlcIp},{Instance}] I{bytepos}.{bitpos} ({set})");
                             }
-                            else if (len == 2)
+                            else if (t_size == S7COMM_TRANSPORT_SIZE_BYTE)
                             {
-                                var set = (UInt16)(data[28] << 8 | data[29]);
-                                plcsim.WriteInputPoint(bytepos, 0, set);
-                                log.Debug($" >> [IP:{PlcIp}:{Instance}] IW{bytepos} ({set})");
-                            }
-                            else if (len == 4)
-                            {
-                                var set = (UInt32)(data[28] << 24 | data[29] << 16 | data[30] << 8 | data[31]);
-                                plcsim.WriteInputPoint(bytepos, 0, set);
-                                log.Debug($" >> [IP:{PlcIp}:{Instance}] ID{bytepos} ({set})");
-                            }
-                            else
-                            {
-                                object set = new byte[len];
-                                Array.Copy(data, 28, (byte[])set, 0, len);
-                                plcsim.WriteInputImage(bytepos, ref set);
-                                log.Debug($" >> [IP:{PlcIp}:{Instance}] I{bytepos} -> {len} BYTE");
+                                if (len == 1)
+                                {
+                                    var set = data[28];
+                                    plcsim.WriteInputPoint(bytepos, 0, set);
+                                    log.Debug($" >> [IP:{PlcIp}:{Instance}] IB{bytepos} ({set})");
+                                }
+                                else if (len == 2)
+                                {
+                                    var set = (UInt16)(data[28] << 8 | data[29]);
+                                    plcsim.WriteInputPoint(bytepos, 0, set);
+                                    log.Debug($" >> [IP:{PlcIp}:{Instance}] IW{bytepos} ({set})");
+                                }
+                                else if (len == 4)
+                                {
+                                    var set = (UInt32)(data[28] << 24 | data[29] << 16 | data[30] << 8 | data[31]);
+                                    plcsim.WriteInputPoint(bytepos, 0, set);
+                                    log.Debug($" >> [IP:{PlcIp}:{Instance}] ID{bytepos} ({set})");
+                                }
+                                else
+                                {
+                                    object set = new byte[len];
+                                    Array.Copy(data, 28, (byte[])set, 0, len);
+                                    plcsim.WriteInputImage(bytepos, ref set);
+                                    log.Debug($" >> [IP:{PlcIp}:{Instance}] I{bytepos} -> {len} BYTE");
+                                }
                             }
                         }
                     }
@@ -169,7 +170,7 @@ namespace NetToPLCSimLite.Services
             catch (Exception ex)
             {
                 //Disconnect();
-                log.Error("S7PlcSim", ex);
+                log.Error(nameof(DataReceived), ex);
             }
         }
         #endregion
@@ -183,11 +184,18 @@ namespace NetToPLCSimLite.Services
 
         private void Timer_Elapsed(object sender, ElapsedEventArgs e)
         {
-            var st = plcsim.GetState() == "RUN_P" ? true : false;
-            if (!st)
+            try
             {
-                plcsim.SetState("RUN_P");
-                plcsim.SetScanMode(ScanModeConstants.ContinuousScan);
+                var st = plcsim.GetState() == "RUN_P" ? true : false;
+                if (!st)
+                {
+                    plcsim.SetState("RUN_P");
+                    plcsim.SetScanMode(ScanModeConstants.ContinuousScan);
+                }
+            }
+            catch (Exception ex)
+            {
+                log.Error(nameof(S7PlcSim), ex);
             }
         }
         #endregion
