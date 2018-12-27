@@ -12,15 +12,6 @@ using System.Timers;
 
 namespace NetToPLCSimLite.Models
 {
-    public enum StationCpu
-    {
-        S200 = 0,
-        S300 = 10,
-        S400 = 20,
-        S1200 = 30,
-        S1300 = 40,
-    }
-
     [Serializable]
     public class S7PlcSim
     {
@@ -46,6 +37,17 @@ namespace NetToPLCSimLite.Models
         public bool IsConnected { get; set; } = false;
         public string PlcPath { get; set; } = string.Empty;
         public int Instance { get; set; } = -1;
+        #endregion
+
+        #region Enums
+        public enum StationCpu
+        {
+            S200 = 0,
+            S300 = 10,
+            S400 = 20,
+            S1200 = 30,
+            S1300 = 40,
+        }
         #endregion
 
         #region Constructors

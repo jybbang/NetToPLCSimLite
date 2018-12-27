@@ -58,15 +58,15 @@ namespace NetToPLCSimLite
 
                 s7Plcsim.StartListenPipe();
 
-                #region User
+                #region USER
                 Task.Run(() =>
                 {
                     while (true)
                     {
                         var keys = System.Console.ReadKey(true);
-                        if (keys.Modifiers == ConsoleModifiers.Control && keys.Key == ConsoleKey.D)
+                        if (keys.Modifiers == ConsoleModifiers.Control && keys.Key == ConsoleKey.F1)
                             LogExt.SwitchLevel();
-                        else if (keys.Modifiers == ConsoleModifiers.Control && keys.Key == ConsoleKey.L)
+                        else if (keys.Modifiers == ConsoleModifiers.Control && keys.Key == ConsoleKey.F2)
                             System.Console.WriteLine(s7Plcsim.ToString());
                     }
                 });
@@ -78,8 +78,8 @@ namespace NetToPLCSimLite
                     exitEvent.Set();
                 };
 
-                LogExt.log.Debug("Press 'Ctrl + L' to Show list.");
-                LogExt.log.Debug("Press 'Ctrl + D' to Swtich log level.");
+                LogExt.log.Debug("Press 'Ctrl + F1' to Swtich log level.");
+                LogExt.log.Debug("Press 'Ctrl + F2' to Show list.");
                 LogExt.log.Debug("Press 'Ctrl + C' to Exit program.");
 
                 exitEvent.WaitOne();

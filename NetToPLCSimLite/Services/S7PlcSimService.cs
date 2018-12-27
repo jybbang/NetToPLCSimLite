@@ -17,8 +17,8 @@ namespace NetToPLCSimLite.Services
     {
         #region Fields
         private readonly ILog log;
-        private readonly NamedPipeClient<List<S7PlcSim>> pipeClient = new NamedPipeClient<List<S7PlcSim>>(CONST.LOGGER_NAME);
-        private readonly ConcurrentQueue<List<S7PlcSim>> msgQueue = new ConcurrentQueue<List<S7PlcSim>>();
+        private readonly NamedPipeClient<IEnumerable<S7PlcSim>> pipeClient = new NamedPipeClient<IEnumerable<S7PlcSim>>(CONST.LOGGER_NAME);
+        private readonly ConcurrentQueue<IEnumerable<S7PlcSim>> msgQueue = new ConcurrentQueue<IEnumerable<S7PlcSim>>();
         private readonly ConcurrentDictionary<string, IsoToS7online> s7ServerList = new ConcurrentDictionary<string, IsoToS7online>();
         #endregion
 
@@ -40,7 +40,7 @@ namespace NetToPLCSimLite.Services
             pipeClient.Disconnected += PipeClient_Disconnected;
             pipeClient.Error += PipeClient_Error;
             pipeClient.Start();
-            log.Info("START, PipeClient Listenning.");
+            log.Info("START, S7PlcSimService PipeClient Listenning.");
         }
 
         public void StopListenPipe()
@@ -49,7 +49,7 @@ namespace NetToPLCSimLite.Services
             pipeClient.Disconnected -= PipeClient_Disconnected;
             pipeClient.Error -= PipeClient_Error;
             pipeClient.Stop();
-            log.Info("STOP, PipeClient Listenning.");
+            log.Info("STOP, S7PlcSimService PipeClient Listenning.");
         }
 
         public override string ToString()
@@ -64,23 +64,23 @@ namespace NetToPLCSimLite.Services
         #endregion
 
         #region Private Methods
-        private void PipeClient_Disconnected(NamedPipeConnection<List<S7PlcSim>, List<S7PlcSim>> connection)
+        private void PipeClient_Disconnected(NamedPipeConnection<IEnumerable<S7PlcSim>, IEnumerable<S7PlcSim>> connection)
         {
-            log.Warn("PipeClient Disconnected.");
+            log.Warn("S7PlcSimService PipeServer Disconnected.");
         }
 
         private void PipeClient_Error(Exception exception)
         {
-            log.Error("PipeClient", exception);
+            log.Error(nameof(S7PlcSimService), exception);
         }
 
-        private void PipeClient_ServerMessage(NamedPipeConnection<List<S7PlcSim>, List<S7PlcSim>> connection, List<S7PlcSim> message)
+        private void PipeClient_ServerMessage(NamedPipeConnection<IEnumerable<S7PlcSim>, IEnumerable<S7PlcSim>> connection, IEnumerable<S7PlcSim> message)
         {
             try
             {
                 log.Info("RECEIVED, PipeClient ServerMessage");
                 msgQueue.Enqueue(message);
-                List<S7PlcSim> msg = null;
+                IEnumerable<S7PlcSim> msg = null;
                 while (!msgQueue.IsEmpty)
                 {
                     msgQueue.TryDequeue(out msg);
@@ -100,8 +100,8 @@ namespace NetToPLCSimLite.Services
                 log.Debug("=== Current S7 PLCSim List ===");
                 foreach (var item in PlcSimList)
                 {
-                    var exist = msg.Exists(x => x.PlcIp == item.PlcIp);
-                    if (!exist) removing.Add(item);
+                    var exist = msg.FirstOrDefault(x => x.PlcIp == item.PlcIp);
+                    if (exist == null) removing.Add(item);
                     log.Debug($"Name:{item.Name}, IP:{item.PlcIp}");
                 }
 
@@ -125,7 +125,7 @@ namespace NetToPLCSimLite.Services
             }
         }
 
-        private void AddStation(List<S7PlcSim> adding)
+        private void AddStation(IEnumerable<S7PlcSim> adding)
         {
             log.Info("=== Adding S7 PLCSim List ===");
             foreach (var item in adding)
@@ -174,7 +174,7 @@ namespace NetToPLCSimLite.Services
             }
         }
 
-        private void RemoveStation(List<S7PlcSim> removing)
+        private void RemoveStation(IEnumerable<S7PlcSim> removing)
         {
             log.Info("=== Removing S7 PLCSim List ===");
             foreach (var item in removing)
