@@ -19,6 +19,10 @@ namespace NetToPLCSimLite.Helpers
         private TcpListener tcp;
         #endregion
 
+        #region Properteis
+        public int S7Port { get; set; } = CONST.S7_PORT;
+        #endregion
+
         #region Constructors
         public S7ServiceHelper()
         {
@@ -57,7 +61,7 @@ namespace NetToPLCSimLite.Helpers
         {
             try
             {
-                tcp = new TcpListener(IPAddress.Any, CONST.S7_PORT);
+                tcp = new TcpListener(IPAddress.Any, S7Port);
                 tcp.Start();
                 return tcp.Server.IsBound;
             }
@@ -81,7 +85,7 @@ namespace NetToPLCSimLite.Helpers
             }
         }
 
-        public bool IsTcpPortAvailable(int port)
+        public bool IsS7PortAvailable()
         {
             bool isAvailable = true;
 
@@ -94,7 +98,7 @@ namespace NetToPLCSimLite.Helpers
 
             foreach (var endpoint in tcpConnInfoArray)
             {
-                if (endpoint.Port == port)
+                if (endpoint.Port == S7Port)
                 {
                     isAvailable = false;
                     break;

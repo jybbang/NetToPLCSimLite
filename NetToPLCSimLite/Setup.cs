@@ -37,7 +37,7 @@ namespace NetToPLCSimLite
                 var timeout = netCfg["TIMEOUT"].IntValue;
                 var s7svcHelper = new Helpers.S7ServiceHelper();
                 var s7svc = s7svcHelper.FindS7Service();
-                var before = s7svcHelper.IsTcpPortAvailable(CONST.S7_PORT);
+                var before = s7svcHelper.IsS7PortAvailable();
                 if (!before)
                 {
                     if (s7svcHelper.StopS7Service(s7svc, timeout)) log.Info("OK, Stop S7 online service.");
@@ -56,7 +56,7 @@ namespace NetToPLCSimLite
                     else throw new InvalidOperationException("NG, Can not stop TCP server.");
                     Thread.Sleep(50);
 
-                    var after = s7svcHelper.IsTcpPortAvailable(CONST.S7_PORT);
+                    var after = s7svcHelper.IsS7PortAvailable();
                     if (after) log.Info("COMPLETE, Get S7 online port.");
                     else throw new InvalidOperationException("FAIL, Can not get S7 online port.");
                 }
