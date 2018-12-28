@@ -12,26 +12,20 @@ using System.Threading.Tasks;
 
 namespace NetToPLCSimLite.Helpers
 {
-    public class S7ServiceHelper
+    public static class S7ServiceHelper
     {
         #region Fields
-        private readonly ILog log;
-        private TcpListener tcp;
+        private static readonly ILog log = LogExt.log;
+        private static TcpListener tcp;
         #endregion
 
         #region Properteis
-        public int S7Port { get; set; } = CONST.S7_PORT;
-        #endregion
-
-        #region Constructors
-        public S7ServiceHelper()
-        {
-            log = LogExt.log;
-        }
+        public static int S7Port { get; set; } = CONST.S7_PORT;
+        public static int Timeout { get; set; } = CONST.SVC_TIMEOUT;
         #endregion
 
         #region Public Methods
-        public ServiceController FindS7Service()
+        public static ServiceController FindS7Service()
         {
             var services = ServiceController.GetServices();
             var s7svc = services.FirstOrDefault(x => x.ServiceName == "s7oiehsx" || x.ServiceName == "s7oiehsx64");
@@ -39,25 +33,25 @@ namespace NetToPLCSimLite.Helpers
             return s7svc;
         }
 
-        public bool StartS7Service(ServiceController s7svc, int timeout)
+        public static bool StartS7Service(ServiceController s7svc)
         {
             if (s7svc.Status == ServiceControllerStatus.Running) return true;
             s7svc.Start();
-            s7svc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromMilliseconds(timeout));
+            s7svc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromMilliseconds(Timeout));
             s7svc.Refresh();
             return s7svc.Status == ServiceControllerStatus.Running;
         }
 
-        public bool StopS7Service(ServiceController s7svc, int timeout)
+        public static bool StopS7Service(ServiceController s7svc)
         {
             if (s7svc.Status == ServiceControllerStatus.Stopped) return true;
             s7svc.Stop();
-            s7svc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromMilliseconds(timeout));
+            s7svc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromMilliseconds(Timeout));
             s7svc.Refresh();
             return s7svc.Status == ServiceControllerStatus.Stopped;
         }
 
-        public bool StartTcpServer()
+        public static bool StartTcpServer()
         {
             try
             {
@@ -72,7 +66,7 @@ namespace NetToPLCSimLite.Helpers
             }
         }
 
-        public bool StopTcpServer()
+        public static bool StopTcpServer()
         {
             try
             {
@@ -85,7 +79,7 @@ namespace NetToPLCSimLite.Helpers
             }
         }
 
-        public bool IsS7PortAvailable()
+        public static bool IsS7PortAvailable()
         {
             bool isAvailable = true;
 

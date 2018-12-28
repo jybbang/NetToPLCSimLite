@@ -18,7 +18,7 @@ namespace NetToPLCSimLite.Services
     public class S7PlcSimService : IDisposable
     {
         #region Fields
-        private readonly ILog log;
+        private readonly ILog log = LogExt.log;
         private NamedPipeClient<List<byte[]>> pipeClient;
         private readonly ConcurrentQueue<List<byte[]>> msgQueue = new ConcurrentQueue<List<byte[]>>();
         private readonly ConcurrentDictionary<string, IsoToS7online> s7ServerList = new ConcurrentDictionary<string, IsoToS7online>();
@@ -30,14 +30,7 @@ namespace NetToPLCSimLite.Services
         public string PipeServerName { get; set; }
         public string PipeServerPath { get; set; }
         #endregion
-
-        #region Constructors
-        public S7PlcSimService()
-        {
-            log = LogExt.log;
-        }
-        #endregion
-
+        
         #region Public Methods
         public void StartListenPipe()
         {

@@ -22,7 +22,7 @@ namespace NetToPLCSimLite.Models
         #endregion
 
         #region Fields
-        private readonly ILog log;
+        private readonly ILog log = LogExt.log;
         private readonly S7ProSim plcsim = new S7ProSim();
         private readonly Timer timer = new Timer();
         private readonly ConcurrentQueue<byte[]> queue = new ConcurrentQueue<byte[]>();
@@ -59,14 +59,7 @@ namespace NetToPLCSimLite.Models
             S1300 = 40,
         }
         #endregion
-
-        #region Constructors
-        public S7PlcSim()
-        {
-            log = LogExt.log;
-        }
-        #endregion
-
+        
         #region Public Methods
         public bool Connect()
         {

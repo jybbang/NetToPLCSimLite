@@ -1,5 +1,6 @@
 ﻿using BizArk.ConsoleApp;
 using log4net;
+using NetToPLCSimLite.Helpers;
 using NetToPLCSimLite.Services;
 using SharpConfig;
 using System;
@@ -12,14 +13,25 @@ namespace NetToPLCSimLite
     public class Setup : BaseConsoleApp
     {
         #region Fields
-        private readonly ILog log;
-        private S7PlcSimService s7Plcsim;
+        private readonly ILog log = LogExt.log;
+        private readonly S7PlcSimService s7Plcsim;
         #endregion
 
         #region Constructors
         public Setup()
         {
-            log = LogExt.log;
+            var config = Configuration.LoadFromFile($@"{AppDomain.CurrentDomain.BaseDirectory}\{CONST.CONFIG_FILE}");
+            var netCfg = config["NET"];
+            var pipeCfg = config["PIPE"];
+
+            s7Plcsim = new S7PlcSimService
+            {
+                PipeName = pipeCfg["NAME"].StringValue,
+                PipeServerName = pipeCfg["PROC_NAME"].StringValue,
+                PipeServerPath = pipeCfg["PATH"].StringValue,
+            };
+
+            S7ServiceHelper.Timeout = netCfg["SVC_TIMEOUT"].IntValue;
         }
         #endregion
 
@@ -29,45 +41,33 @@ namespace NetToPLCSimLite
             log.Info("Start Program.");
             try
             {
-                var config = Configuration.LoadFromFile($@"{AppDomain.CurrentDomain.BaseDirectory}\{CONST.CONFIG_FILE}");
-                var netCfg = config["NET"];
-                var pipeCfg = config["PIPE"];
-
                 log.Info("RUN, Get S7 online port.");
-                var timeout = netCfg["TIMEOUT"].IntValue;
-                var s7svcHelper = new Helpers.S7ServiceHelper();
-                var s7svc = s7svcHelper.FindS7Service();
-                var before = s7svcHelper.IsS7PortAvailable();
+                var s7svc = S7ServiceHelper.FindS7Service();
+                var before = S7ServiceHelper.IsS7PortAvailable();
                 if (!before)
                 {
-                    if (s7svcHelper.StopS7Service(s7svc, timeout)) log.Info("OK, Stop S7 online service.");
+                    if (S7ServiceHelper.StopS7Service(s7svc)) log.Info("OK, Stop S7 online service.");
                     else throw new InvalidOperationException("NG, Can not stop S7 online service.");
                     Thread.Sleep(50);
 
-                    if (s7svcHelper.StartTcpServer()) log.Info("OK, Start temporary TCP server.");
+                    if (S7ServiceHelper.StartTcpServer()) log.Info("OK, Start temporary TCP server.");
                     else throw new InvalidOperationException("NG, Can not start TCP server.");
                     Thread.Sleep(50);
 
-                    if (s7svcHelper.StartS7Service(s7svc, timeout)) log.Info("OK, Start S7 online service.");
+                    if (S7ServiceHelper.StartS7Service(s7svc)) log.Info("OK, Start S7 online service.");
                     else throw new InvalidOperationException("NG, Can not start S7 online service.");
                     Thread.Sleep(50);
 
-                    if (s7svcHelper.StopTcpServer()) log.Info("OK, Stop temporary TCP server.");
+                    if (S7ServiceHelper.StopTcpServer()) log.Info("OK, Stop temporary TCP server.");
                     else throw new InvalidOperationException("NG, Can not stop TCP server.");
                     Thread.Sleep(50);
 
-                    var after = s7svcHelper.IsS7PortAvailable();
+                    var after = S7ServiceHelper.IsS7PortAvailable();
                     if (after) log.Info("COMPLETE, Get S7 online port.");
                     else throw new InvalidOperationException("FAIL, Can not get S7 online port.");
                 }
                 else log.Info("COMPLETE, Aleady get S7 online port.");
 
-                s7Plcsim = new S7PlcSimService
-                {
-                    PipeName = pipeCfg["NAME"].StringValue,
-                    PipeServerName = pipeCfg["PROC_NAME"].StringValue,
-                    PipeServerPath = pipeCfg["PATH"].StringValue,
-                };
                 s7Plcsim.StartListenPipe();
 
                 #region USER
