@@ -43,31 +43,27 @@ namespace NetToPLCSimLite
             {
                 log.Info("RUN, Get S7 online port.");
                 var s7svc = S7ServiceHelper.FindS7Service();
-                if (s7svc == null) throw new InvalidOperationException("NG, Can not find S7 online service.");
+                if (s7svc == null) throw new NullReferenceException();
+
                 var before = S7ServiceHelper.IsS7PortAvailable();
                 if (!before)
                 {
-                    if (S7ServiceHelper.StopS7Service(s7svc)) log.Info("OK, Stop S7 online service.");
-                    else throw new InvalidOperationException("NG, Can not stop S7 online service.");
+                    S7ServiceHelper.StopS7Service(s7svc);
                     Thread.Sleep(50);
 
-                    if (S7ServiceHelper.StartTcpServer()) log.Info("OK, Start temporary TCP server.");
-                    else throw new InvalidOperationException("NG, Can not start TCP server.");
+                    S7ServiceHelper.StartTcpServer();
                     Thread.Sleep(50);
 
-                    if (S7ServiceHelper.StartS7Service(s7svc)) log.Info("OK, Start S7 online service.");
-                    else throw new InvalidOperationException("NG, Can not start S7 online service.");
+                    if(!S7ServiceHelper.StartS7Service(s7svc)) throw new InvalidOperationException("FAIL, You must run S7 online service.");
                     Thread.Sleep(50);
 
-                    if (S7ServiceHelper.StopTcpServer()) log.Info("OK, Stop temporary TCP server.");
-                    else throw new InvalidOperationException("NG, Can not stop TCP server.");
+                    S7ServiceHelper.StopTcpServer();
                     Thread.Sleep(50);
 
-                    var after = S7ServiceHelper.IsS7PortAvailable();
-                    if (after) log.Info("COMPLETE, Get S7 online port.");
+                    if (S7ServiceHelper.IsS7PortAvailable()) log.Info("FINISH, Get S7 online port.");
                     else throw new InvalidOperationException("FAIL, Can not get S7 online port.");
                 }
-                else log.Info("COMPLETE, Aleady get S7 online port.");
+                else log.Info("FINISH, Get S7 online port.");
 
                 s7Plcsim.StartListenPipe();
 

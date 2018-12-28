@@ -29,6 +29,9 @@ namespace NetToPLCSimLite.Helpers
         {
             var services = ServiceController.GetServices();
             var s7svc = services.FirstOrDefault(x => x.ServiceName == "s7oiehsx" || x.ServiceName == "s7oiehsx64");
+
+            if (s7svc == null) log.Warn("NG, Can not find S7 online service.");
+            else log.Info("OK, Find S7 online service.");
             return s7svc;
         }
 
@@ -39,7 +42,17 @@ namespace NetToPLCSimLite.Helpers
             s7svc.Start();
             s7svc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromMilliseconds(Timeout));
             s7svc.Refresh();
-            return s7svc.Status == ServiceControllerStatus.Running;
+
+            if (s7svc.Status == ServiceControllerStatus.Running)
+            {
+                log.Info("OK, Start S7 online service.");
+                return true;
+            }
+            else
+            {
+                log.Warn("NG, Can not start S7 online service.");
+                return false;
+            }
         }
 
         public static bool StopS7Service(ServiceController s7svc)
@@ -49,7 +62,17 @@ namespace NetToPLCSimLite.Helpers
             s7svc.Stop();
             s7svc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromMilliseconds(Timeout));
             s7svc.Refresh();
-            return s7svc.Status == ServiceControllerStatus.Stopped;
+
+            if (s7svc.Status == ServiceControllerStatus.Stopped)
+            {
+                log.Info("OK, Stop S7 online service.");
+                return true;
+            }
+            else
+            {
+                log.Warn("NG, Can not stop S7 online service.");
+                return false;
+            }
         }
 
         public static bool StartTcpServer()
@@ -58,7 +81,16 @@ namespace NetToPLCSimLite.Helpers
             {
                 tcp = new TcpListener(IPAddress.Any, S7Port);
                 tcp.Start();
-                return tcp.Server.IsBound;
+                if (tcp.Server.IsBound)
+                {
+                    log.Info("OK, Start TCP Server.");
+                    return true;
+                }
+                else
+                {
+                    log.Warn("NG, Start TCP Server.");
+                    return false;
+                }
             }
             catch (Exception ex)
             {
@@ -73,7 +105,16 @@ namespace NetToPLCSimLite.Helpers
             try
             {
                 if (tcp != null) tcp.Stop();
-                return !tcp.Server.IsBound;
+                if (!tcp.Server.IsBound)
+                {
+                    log.Info("OK, Stop TCP Server.");
+                    return true;
+                }
+                else
+                {
+                    log.Warn("NG, Stop TCP Server.");
+                    return false;
+                }
             }
             catch (Exception ex)
             {
@@ -101,7 +142,17 @@ namespace NetToPLCSimLite.Helpers
                     break;
                 }
             }
-            return isAvailable;
+
+            if (isAvailable)
+            {
+                log.Info($"OK, Port {S7Port} avilable.");
+                return true;
+            }
+            else
+            {
+                log.Warn($"NG, Port {S7Port} avilable.");
+                return false;
+            }
         }
         #endregion
     }
