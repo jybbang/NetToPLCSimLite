@@ -29,12 +29,12 @@ namespace NetToPLCSimLite.Helpers
         {
             var services = ServiceController.GetServices();
             var s7svc = services.FirstOrDefault(x => x.ServiceName == "s7oiehsx" || x.ServiceName == "s7oiehsx64");
-            if (s7svc == null) throw new NullReferenceException("Can not find S7 online service.");
             return s7svc;
         }
 
         public static bool StartS7Service(ServiceController s7svc)
         {
+            if (s7svc == null) return false;
             if (s7svc.Status == ServiceControllerStatus.Running) return true;
             s7svc.Start();
             s7svc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromMilliseconds(Timeout));
@@ -44,6 +44,7 @@ namespace NetToPLCSimLite.Helpers
 
         public static bool StopS7Service(ServiceController s7svc)
         {
+            if (s7svc == null) return false;
             if (s7svc.Status == ServiceControllerStatus.Stopped) return true;
             s7svc.Stop();
             s7svc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromMilliseconds(Timeout));
@@ -59,10 +60,11 @@ namespace NetToPLCSimLite.Helpers
                 tcp.Start();
                 return tcp.Server.IsBound;
             }
-            catch
+            catch (Exception ex)
             {
                 StopTcpServer();
-                throw;
+                log.Error(nameof(StartTcpServer), ex);
+                return false;
             }
         }
 
@@ -73,8 +75,9 @@ namespace NetToPLCSimLite.Helpers
                 if (tcp != null) tcp.Stop();
                 return !tcp.Server.IsBound;
             }
-            catch
+            catch (Exception ex)
             {
+                log.Error(nameof(StartTcpServer), ex);
                 return false;
             }
         }

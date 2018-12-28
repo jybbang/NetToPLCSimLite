@@ -43,6 +43,7 @@ namespace NetToPLCSimLite
             {
                 log.Info("RUN, Get S7 online port.");
                 var s7svc = S7ServiceHelper.FindS7Service();
+                if (s7svc == null) throw new InvalidOperationException("NG, Can not find S7 online service.");
                 var before = S7ServiceHelper.IsS7PortAvailable();
                 if (!before)
                 {
