@@ -2,10 +2,12 @@
 using IsoOnTcp;
 using log4net;
 using NamedPipeWrapper;
+using NetToPLCSimLite.Helpers;
 using NetToPLCSimLite.Models;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -17,13 +19,16 @@ namespace NetToPLCSimLite.Services
     {
         #region Fields
         private readonly ILog log;
-        private readonly NamedPipeClient<IEnumerable<S7PlcSim>> pipeClient = new NamedPipeClient<IEnumerable<S7PlcSim>>(CONST.LOGGER_NAME);
-        private readonly ConcurrentQueue<IEnumerable<S7PlcSim>> msgQueue = new ConcurrentQueue<IEnumerable<S7PlcSim>>();
+        private NamedPipeClient<List<byte[]>> pipeClient;
+        private readonly ConcurrentQueue<List<byte[]>> msgQueue = new ConcurrentQueue<List<byte[]>>();
         private readonly ConcurrentDictionary<string, IsoToS7online> s7ServerList = new ConcurrentDictionary<string, IsoToS7online>();
         #endregion
 
         #region Properties
         public List<S7PlcSim> PlcSimList { get; } = new List<S7PlcSim>();
+        public string PipeName { get; set; }
+        public string PipeServerName { get; set; }
+        public string PipeServerPath { get; set; }
         #endregion
 
         #region Constructors
@@ -36,6 +41,9 @@ namespace NetToPLCSimLite.Services
         #region Public Methods
         public void StartListenPipe()
         {
+            if (string.IsNullOrEmpty(PipeName)) throw new ArgumentNullException(nameof(PipeName));
+            pipeClient = new NamedPipeClient<List<byte[]>>(PipeName);
+
             pipeClient.ServerMessage += PipeClient_ServerMessage;
             pipeClient.Disconnected += PipeClient_Disconnected;
             pipeClient.Error += PipeClient_Error;
@@ -64,9 +72,35 @@ namespace NetToPLCSimLite.Services
         #endregion
 
         #region Private Methods
-        private void PipeClient_Disconnected(NamedPipeConnection<IEnumerable<S7PlcSim>, IEnumerable<S7PlcSim>> connection)
+        private void PipeClient_Disconnected(NamedPipeConnection<List<byte[]>, List<byte[]>> connection)
         {
             log.Warn("S7PlcSimService PipeServer Disconnected.");
+
+            try
+            {
+                if (string.IsNullOrEmpty(PipeServerName)) return;
+                var procs = Process.GetProcessesByName(PipeServerName);
+                if (procs != null)
+                    foreach (var proc in procs)
+                    {
+                        proc.ProcessKill();
+                    }
+
+                if (!string.IsNullOrEmpty(PipeServerPath))
+                {
+                    log.Warn("PipeServer Program restart.");
+                    Process.Start(PipeServerPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                log.Error(nameof(PipeClient_Disconnected), ex);
+            }
+            finally
+            {
+                log.Warn("Program Exit.");
+                Environment.Exit(-1);
+            }
         }
 
         private void PipeClient_Error(Exception exception)
@@ -74,13 +108,13 @@ namespace NetToPLCSimLite.Services
             log.Error(nameof(S7PlcSimService), exception);
         }
 
-        private void PipeClient_ServerMessage(NamedPipeConnection<IEnumerable<S7PlcSim>, IEnumerable<S7PlcSim>> connection, IEnumerable<S7PlcSim> message)
+        private void PipeClient_ServerMessage(NamedPipeConnection<List<byte[]>, List<byte[]>> connection, List<byte[]> message)
         {
             try
             {
-                log.Info("RECEIVED, PipeClient ServerMessage");
+                log.Debug("RECEIVED, PipeClient ServerMessage");
                 msgQueue.Enqueue(message);
-                IEnumerable<S7PlcSim> msg = null;
+                List<byte[]> msg = null;
                 while (!msgQueue.IsEmpty)
                 {
                     msgQueue.TryDequeue(out msg);
@@ -89,28 +123,34 @@ namespace NetToPLCSimLite.Services
 
                 log.Debug("=== Received S7 PLCSim List ===");
                 var adding = new List<S7PlcSim>();
+                var original = new List<S7PlcSim>();
                 foreach (var item in msg)
                 {
-                    var exist = PlcSimList.FirstOrDefault(x => x.PlcIp == item.PlcIp);
-                    if (exist == null) adding.Add(item);
-                    else item.IsStarted = exist.IsStarted;
-                    log.Debug($"Name:{item.Name}, IP:{item.PlcIp}");
+                    var plc = item.ProtobufDeserialize<S7PlcSim>();
+                    original.Add(plc);
+
+                    var exist = PlcSimList.FirstOrDefault(x => x.PlcIp == plc.PlcIp);
+                    if (exist == null) adding.Add(plc);
+                    else plc.IsStarted = exist.IsStarted;
+                    log.Debug($"Name:{plc.Name}, IP:{plc.PlcIp}");
                 }
 
                 log.Debug("=== Current S7 PLCSim List ===");
                 var removing = new List<S7PlcSim>();
-                foreach (var item in PlcSimList)
+                foreach (var plc in PlcSimList)
                 {
-                    var exist = msg.FirstOrDefault(x => x.PlcIp == item.PlcIp);
-                    if (exist == null) removing.Add(item);
-                    log.Debug($"Name:{item.Name}, IP:{item.PlcIp}");
+                    var exist = original.FirstOrDefault(x => x.PlcIp == plc.PlcIp);
+                    if (exist == null) removing.Add(plc);
+                    log.Debug($"Name:{plc.Name}, IP:{plc.PlcIp}");
                 }
 
                 if (adding.Count > 0) AddStation(adding);
                 if (removing.Count > 0) RemoveStation(removing);
 
                 // Return
-                connection.PushMessage(msg);
+                var ret = original.Select(x => x.ToProtobuf()).ToList();
+                if (ret == null) return;
+                connection.PushMessage(ret);
             }
             catch (Exception ex)
             {

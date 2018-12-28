@@ -1,4 +1,5 @@
 ﻿using log4net;
+using ProtoBuf;
 using S7PROSIMLib;
 using System;
 using System.Collections.Concurrent;
@@ -12,7 +13,7 @@ using System.Timers;
 
 namespace NetToPLCSimLite.Models
 {
-    [Serializable]
+    [ProtoContract]
     public class S7PlcSim
     {
         #region Const
@@ -28,14 +29,23 @@ namespace NetToPLCSimLite.Models
         #endregion
 
         #region Properties
+        [ProtoMember(1)]
         public string Name { get; set; } = string.Empty;
+        [ProtoMember(2)]
         public string PlcIp { get; set; } = string.Empty;
+        [ProtoMember(3)]
         public StationCpu Cpu { get; set; } = StationCpu.S400;
+        [ProtoMember(4)]
         public int Rack { get; set; } = 0;
+        [ProtoMember(5)]
         public int Slot { get; set; } = 3;
+        [ProtoMember(6)]
         public bool IsStarted { get; set; } = false;
+        [ProtoMember(7)]
         public bool IsConnected { get; set; } = false;
+        [ProtoMember(8)]
         public string PlcPath { get; set; } = string.Empty;
+        [ProtoMember(9)]
         public int Instance { get; set; } = -1;
         #endregion
 

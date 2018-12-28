@@ -35,20 +35,20 @@ namespace NetToPLCSimLite.Helpers
             return s7svc;
         }
 
-        public bool StartS7Service(ServiceController s7svc)
+        public bool StartS7Service(ServiceController s7svc, int timeout)
         {
             if (s7svc.Status == ServiceControllerStatus.Running) return true;
             s7svc.Start();
-            s7svc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromMilliseconds(CONST.SERVICE_TIMEOUT));
+            s7svc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromMilliseconds(timeout));
             s7svc.Refresh();
             return s7svc.Status == ServiceControllerStatus.Running;
         }
 
-        public bool StopS7Service(ServiceController s7svc)
+        public bool StopS7Service(ServiceController s7svc, int timeout)
         {
             if (s7svc.Status == ServiceControllerStatus.Stopped) return true;
             s7svc.Stop();
-            s7svc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromMilliseconds(CONST.SERVICE_TIMEOUT));
+            s7svc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromMilliseconds(timeout));
             s7svc.Refresh();
             return s7svc.Status == ServiceControllerStatus.Stopped;
         }

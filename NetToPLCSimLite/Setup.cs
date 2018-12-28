@@ -1,6 +1,7 @@
 ﻿using BizArk.ConsoleApp;
 using log4net;
 using NetToPLCSimLite.Services;
+using SharpConfig;
 using System;
 using System.ComponentModel;
 using System.Threading;
@@ -12,7 +13,7 @@ namespace NetToPLCSimLite
     {
         #region Fields
         private readonly ILog log;
-        private readonly S7PlcSimService s7Plcsim = new S7PlcSimService();
+        private S7PlcSimService s7Plcsim;
         #endregion
 
         #region Constructors
@@ -28,13 +29,18 @@ namespace NetToPLCSimLite
             log.Info("Start Program.");
             try
             {
-                var s7svcHelper = new Helpers.S7ServiceHelper();
+                var config = Configuration.LoadFromFile($@"{AppDomain.CurrentDomain.BaseDirectory}\{CONST.CONFIG_FILE}");
+                var netCfg = config["NET"];
+                var pipeCfg = config["PIPE"];
+
                 log.Info("RUN, Get S7 online port.");
+                var timeout = netCfg["TIMEOUT"].IntValue;
+                var s7svcHelper = new Helpers.S7ServiceHelper();
                 var s7svc = s7svcHelper.FindS7Service();
                 var before = s7svcHelper.IsTcpPortAvailable(CONST.S7_PORT);
                 if (!before)
                 {
-                    if (s7svcHelper.StopS7Service(s7svc)) log.Info("OK, Stop S7 online service.");
+                    if (s7svcHelper.StopS7Service(s7svc, timeout)) log.Info("OK, Stop S7 online service.");
                     else throw new InvalidOperationException("NG, Can not stop S7 online service.");
                     Thread.Sleep(50);
 
@@ -42,7 +48,7 @@ namespace NetToPLCSimLite
                     else throw new InvalidOperationException("NG, Can not start TCP server.");
                     Thread.Sleep(50);
 
-                    if (s7svcHelper.StartS7Service(s7svc)) log.Info("OK, Start S7 online service.");
+                    if (s7svcHelper.StartS7Service(s7svc, timeout)) log.Info("OK, Start S7 online service.");
                     else throw new InvalidOperationException("NG, Can not start S7 online service.");
                     Thread.Sleep(50);
 
@@ -56,6 +62,12 @@ namespace NetToPLCSimLite
                 }
                 else log.Info("COMPLETE, Aleady get S7 online port.");
 
+                s7Plcsim = new S7PlcSimService
+                {
+                    PipeName = pipeCfg["NAME"].StringValue,
+                    PipeServerName = pipeCfg["PROC_NAME"].StringValue,
+                    PipeServerPath = pipeCfg["PATH"].StringValue,
+                };
                 s7Plcsim.StartListenPipe();
 
                 #region USER
@@ -91,7 +103,7 @@ namespace NetToPLCSimLite
             }
             finally
             {
-                s7Plcsim.Dispose();
+                s7Plcsim?.Dispose();
                 log.Info("Exit Program.");
             }
 
