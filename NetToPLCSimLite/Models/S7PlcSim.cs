@@ -182,8 +182,8 @@ namespace NetToPLCSimLite.Models
         #region Private Methods
         private void Plcsim_ConnectionError(string ControlEngine, int Error)
         {
-            Disconnect();
             log.Error($"PROSIM ERROR({Error}), Name:{Name}, IP:{PlcIp}, INS:{PlcPath}");
+            Disconnect();
         }
 
         private void Timer_Elapsed(object sender, ElapsedEventArgs e)

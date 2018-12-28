@@ -95,21 +95,30 @@ namespace NetToPLCSimLite.Helpers
             catch (Exception ex)
             {
                 StopTcpServer();
-                throw ex;
+                log.Error(nameof(StartTcpServer), ex);
+                return false;
             }
         }
 
         public static bool StopTcpServer()
         {
-            if (tcp != null) tcp.Stop();
-            if (!tcp.Server.IsBound)
+            try
             {
-                log.Info("OK, Stop TCP Server.");
-                return true;
+                if (tcp != null) tcp.Stop();
+                if (!tcp.Server.IsBound)
+                {
+                    log.Info("OK, Stop TCP Server.");
+                    return true;
+                }
+                else
+                {
+                    log.Warn("NG, Stop TCP Server.");
+                    return false;
+                }
             }
-            else
+            catch (Exception ex)
             {
-                log.Warn("NG, Stop TCP Server.");
+                log.Error(nameof(StartTcpServer), ex);
                 return false;
             }
         }
