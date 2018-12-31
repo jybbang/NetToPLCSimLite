@@ -65,7 +65,7 @@
     <Compile Include="Helpers\Lib.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Models\S7PlcSim.cs" />
+    <Compile Include="Models\S7Protocol.cs" />
     <Compile Include="Services\S7PlcSimService.cs" />
     <Compile Include="Helpers\S7ServiceHelper.cs" />
     <Compile Include="Setup.cs" />

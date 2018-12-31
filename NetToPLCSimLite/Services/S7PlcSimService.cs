@@ -22,7 +22,7 @@ namespace NetToPLCSimLite.Services
         private readonly ILog log = LogExt.log;
         private NamedPipeClient<List<byte[]>> pipeClient;
 
-        private readonly List<S7PlcSim> PlcSimList = new List<S7PlcSim>();
+        private readonly List<S7Protocol> PlcSimList = new List<S7Protocol>();
         private readonly ConcurrentQueue<List<byte[]>> msgQueue = new ConcurrentQueue<List<byte[]>>();
         private readonly ConcurrentDictionary<string, IsoToS7online> s7ServerList = new ConcurrentDictionary<string, IsoToS7online>();
         #endregion
@@ -186,26 +186,26 @@ namespace NetToPLCSimLite.Services
                 if (msg == null) return;
 
                 log.Debug("=== Received S7 PLCSim List ===");
-                var adding = new List<S7PlcSim>();
-                var original = new List<S7PlcSim>();
+                var adding = new List<S7Protocol>();
+                var original = new List<S7Protocol>();
                 foreach (var item in msg)
                 {
-                    var plc = item.ProtobufDeserialize<S7PlcSim>();
+                    var plc = item.ProtobufDeserialize<S7Protocol>();
                     original.Add(plc);
 
-                    var exist = PlcSimList.FirstOrDefault(x => x.PlcIp == plc.PlcIp);
+                    var exist = PlcSimList.FirstOrDefault(x => x.Ip == plc.Ip);
                     if (exist == null) adding.Add(plc);
                     else plc.IsStarted = exist.IsStarted;
-                    log.Debug($"Name:{plc.Name}, IP:{plc.PlcIp}");
+                    log.Debug($"Name:{plc.Name}, IP:{plc.Ip}");
                 }
 
                 log.Debug("=== Current S7 PLCSim List ===");
-                var removing = new List<S7PlcSim>();
+                var removing = new List<S7Protocol>();
                 foreach (var plc in PlcSimList)
                 {
-                    var exist = original.FirstOrDefault(x => x.PlcIp == plc.PlcIp);
+                    var exist = original.FirstOrDefault(x => x.Ip == plc.Ip);
                     if (exist == null) removing.Add(plc);
-                    log.Debug($"Name:{plc.Name}, IP:{plc.PlcIp}");
+                    log.Debug($"Name:{plc.Name}, IP:{plc.Ip}");
                 }
 
                 if (adding.Count > 0) AddStation(adding);
@@ -225,12 +225,12 @@ namespace NetToPLCSimLite.Services
                 log.Debug("=== Running S7 PLCSim List ===");
                 foreach (var item in PlcSimList)
                 {
-                    log.Debug($"Name:{item.Name}, IP:{item.PlcIp}, Connected:{item.IsConnected}, Started:{item.IsStarted}");
+                    log.Debug($"Name:{item.Name}, IP:{item.Ip}, Connected:{item.IsConnected}, Started:{item.IsStarted}");
                 }
             }
         }
 
-        private void AddStation(IEnumerable<S7PlcSim> adding)
+        private void AddStation(IEnumerable<S7Protocol> adding)
         {
             try
             {
@@ -247,7 +247,7 @@ namespace NetToPLCSimLite.Services
                     try
                     {
                         srv = new IsoToS7online(false);
-                        var ip = IPAddress.Parse(item.PlcIp);
+                        var ip = IPAddress.Parse(item.Ip);
                         var err = string.Empty;
                         var ret = srv.start(item.Name, ip, tsaps, ip, item.Rack, item.Slot, ref err);
                         if (ret)
@@ -256,28 +256,28 @@ namespace NetToPLCSimLite.Services
                             if (conn)
                             {
                                 srv.DataReceived = item.DataReceived;
-                                s7ServerList.TryAdd(item.PlcIp, srv);
+                                s7ServerList.TryAdd(item.Ip, srv);
 
                                 PlcSimList.Add(item);
                                 item.IsStarted = true;
-                                log.Info($"OK, Name:{item.Name}, IP:{item.PlcIp}");
+                                log.Info($"OK, Name:{item.Name}, IP:{item.Ip}");
                             }
                             else
                             {
                                 srv.stop();
                                 item.IsStarted = false;
-                                log.Warn($"NG, Name:{item.Name}, IP:{item.PlcIp}");
+                                log.Warn($"NG, Name:{item.Name}, IP:{item.Ip}");
                             }
                         }
                         else
-                            log.Warn($"NG({err}), Can not start NetToPLCSimLite Server, Name:{item.Name}, IP:{item.PlcIp}");
+                            log.Warn($"NG({err}), Can not start NetToPLCSimLite Server, Name:{item.Name}, IP:{item.Ip}");
                     }
                     catch (Exception ex)
                     {
                         srv?.stop();
                         item.Disconnect();
                         item.IsStarted = false;
-                        log.Error($"ERR, Name:{item.Name}, IP:{item.PlcIp}, {ex.Message}");
+                        log.Error($"ERR, Name:{item.Name}, IP:{item.Ip}, {ex.Message}");
                     }
                 }
             }
@@ -287,7 +287,7 @@ namespace NetToPLCSimLite.Services
             }
         }
 
-        private void RemoveStation(IEnumerable<S7PlcSim> removing)
+        private void RemoveStation(IEnumerable<S7Protocol> removing)
         {
             try
             {
@@ -296,23 +296,23 @@ namespace NetToPLCSimLite.Services
                 {
                     try
                     {
-                        s7ServerList.TryRemove(item.PlcIp, out IsoToS7online srv);
+                        s7ServerList.TryRemove(item.Ip, out IsoToS7online srv);
                         srv?.stop();
                         item.Disconnect();
                         item.IsStarted = false;
 
-                        var exist = PlcSimList.FirstOrDefault(x => x.PlcIp == item.PlcIp);
+                        var exist = PlcSimList.FirstOrDefault(x => x.Ip == item.Ip);
                         if (exist != null)
                         {
                             PlcSimList.Remove(exist);
-                            log.Info($"OK, Name:{item.Name}, IP:{item.PlcIp}");
+                            log.Info($"OK, Name:{item.Name}, IP:{item.Ip}");
                         }
                         else
-                            log.Warn($"NG, Name:{item.Name}, IP:{item.PlcIp}");
+                            log.Warn($"NG, Name:{item.Name}, IP:{item.Ip}");
                     }
                     catch (Exception ex)
                     {
-                        log.Error($"ERR, Name:{item.Name}, IP:{item.PlcIp}, {ex.Message}");
+                        log.Error($"ERR, Name:{item.Name}, IP:{item.Ip}, {ex.Message}");
                     }
                 }
             }

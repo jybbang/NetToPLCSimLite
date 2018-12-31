@@ -14,7 +14,7 @@ using System.Timers;
 namespace NetToPLCSimLite.Models
 {
     [ProtoContract]
-    public class S7PlcSim
+    public class S7Protocol
     {
         #region Const
         private const byte S7COMM_TRANSPORT_SIZE_BIT = 1;
@@ -32,17 +32,17 @@ namespace NetToPLCSimLite.Models
         [ProtoMember(1)]
         public string Name { get; set; } = string.Empty;
         [ProtoMember(2)]
-        public string PlcIp { get; set; } = string.Empty;
+        public string Ip { get; set; } = string.Empty;
         [ProtoMember(3)]
-        public StationCpu Cpu { get; set; } = StationCpu.S400;
-        [ProtoMember(4)]
-        public int Rack { get; set; } = 0;
-        [ProtoMember(5)]
-        public int Slot { get; set; } = 3;
-        [ProtoMember(6)]
         public bool IsStarted { get; set; } = false;
-        [ProtoMember(7)]
+        [ProtoMember(4)]
         public bool IsConnected { get; set; } = false;
+        [ProtoMember(5)]
+        public StationCpu Cpu { get; set; } = StationCpu.S400;
+        [ProtoMember(6)]
+        public int Rack { get; set; } = 0;
+        [ProtoMember(7)]
+        public int Slot { get; set; } = 3;
         [ProtoMember(8)]
         public string PlcPath { get; set; } = string.Empty;
         [ProtoMember(9)]
@@ -68,7 +68,7 @@ namespace NetToPLCSimLite.Models
                 if (Instance < 1 || Instance > 8) return false;
                 Disconnect();
 
-                log.Info($"CONNECTING, Name:{Name}, IP:{PlcIp}, INS:{PlcPath}");
+                log.Info($"CONNECTING, Name:{Name}, IP:{Ip}, INS:{PlcPath}");
                 plcsim.ConnectionError -= Plcsim_ConnectionError;
                 plcsim.ConnectionError += Plcsim_ConnectionError;
                 plcsim.ConnectExt(Instance);
@@ -83,14 +83,14 @@ namespace NetToPLCSimLite.Models
                     timer.Elapsed += Timer_Elapsed;
                     timer.Interval = 1000;
                     timer.Start();
-                    log.Info($"OK, Name:{Name}, IP:{PlcIp}, INS:{PlcPath}");
+                    log.Info($"OK, Name:{Name}, IP:{Ip}, INS:{PlcPath}");
                 }
-                log.Warn($"NG, Name:{Name}, IP:{PlcIp}, INS:{PlcPath}");
+                log.Warn($"NG, Name:{Name}, IP:{Ip}, INS:{PlcPath}");
             }
             catch (Exception ex)
             {
                 Disconnect();
-                log.Error($"ERR, Name:{Name}, IP:{PlcIp}, INS:{PlcPath}", ex);
+                log.Error($"ERR, Name:{Name}, IP:{Ip}, INS:{PlcPath}", ex);
             }
 
             return IsConnected;
@@ -107,14 +107,17 @@ namespace NetToPLCSimLite.Models
                 {
                     plcsim.ConnectionError -= Plcsim_ConnectionError;
                     plcsim.Disconnect();
-                    IsConnected = false;
-                    IsStarted = false;
-                    log.Info($"DISCONNECTED, Name:{Name}, IP:{PlcIp}, INS:{Instance}");
+                    log.Info($"DISCONNECTED, Name:{Name}, IP:{Ip}, INS:{Instance}");
                 }
             }
             catch (Exception)
             {
                 throw;
+            }
+            finally
+            {
+                IsConnected = false;
+                IsStarted = false;
             }
         }
 
@@ -144,7 +147,7 @@ namespace NetToPLCSimLite.Models
                             {
                                 var set = data[28] == 0 ? false : true;
                                 plcsim.WriteInputPoint(bytepos, bitpos, set);
-                                log.Debug($" >> [IP:{PlcIp},{Instance}] I{bytepos}.{bitpos} ({set})");
+                                log.Debug($" >> [IP:{Ip},{Instance}] I{bytepos}.{bitpos} ({set})");
                             }
                             else if (t_size == S7COMM_TRANSPORT_SIZE_BYTE)
                             {
@@ -152,26 +155,26 @@ namespace NetToPLCSimLite.Models
                                 {
                                     var set = data[28];
                                     plcsim.WriteInputPoint(bytepos, 0, set);
-                                    log.Debug($" >> [IP:{PlcIp}:{Instance}] IB{bytepos} ({set})");
+                                    log.Debug($" >> [IP:{Ip}:{Instance}] IB{bytepos} ({set})");
                                 }
                                 else if (len == 2)
                                 {
                                     var set = (UInt16)(data[28] << 8 | data[29]);
                                     plcsim.WriteInputPoint(bytepos, 0, set);
-                                    log.Debug($" >> [IP:{PlcIp}:{Instance}] IW{bytepos} ({set})");
+                                    log.Debug($" >> [IP:{Ip}:{Instance}] IW{bytepos} ({set})");
                                 }
                                 else if (len == 4)
                                 {
                                     var set = (UInt32)(data[28] << 24 | data[29] << 16 | data[30] << 8 | data[31]);
                                     plcsim.WriteInputPoint(bytepos, 0, set);
-                                    log.Debug($" >> [IP:{PlcIp}:{Instance}] ID{bytepos} ({set})");
+                                    log.Debug($" >> [IP:{Ip}:{Instance}] ID{bytepos} ({set})");
                                 }
                                 else
                                 {
                                     object set = new byte[len];
                                     Array.Copy(data, 28, (byte[])set, 0, len);
                                     plcsim.WriteInputImage(bytepos, ref set);
-                                    log.Debug($" >> [IP:{PlcIp}:{Instance}] I{bytepos} -> {len} BYTE");
+                                    log.Debug($" >> [IP:{Ip}:{Instance}] I{bytepos} -> {len} BYTE");
                                 }
                             }
                         }
@@ -191,7 +194,7 @@ namespace NetToPLCSimLite.Models
         {
             try
             {
-                log.Error($"PROSIM ERROR({Error}), Name:{Name}, IP:{PlcIp}, INS:{PlcPath}");
+                log.Error($"PROSIM ERROR({Error}), Name:{Name}, IP:{Ip}, INS:{PlcPath}");
                 Disconnect();
             }
             catch (Exception ex)
