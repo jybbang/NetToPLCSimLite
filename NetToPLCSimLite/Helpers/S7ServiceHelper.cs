@@ -12,20 +12,15 @@ using System.Threading.Tasks;
 
 namespace NetToPLCSimLite.Helpers
 {
-    public static class S7ServiceHelper
+    public class S7ServiceHelper
     {
         #region Fields
-        private static readonly ILog log = LogExt.log;
-        private static TcpListener tcp;
-        #endregion
-
-        #region Properteis
-        public static int S7Port { get; set; } = CONST.S7_PORT;
-        public static int Timeout { get; set; } = CONST.SVC_TIMEOUT;
+        private readonly ILog log = LogExt.log;
+        private TcpListener tcp;
         #endregion
 
         #region Public Methods
-        public static ServiceController FindS7Service()
+        public ServiceController FindS7Service()
         {
             var services = ServiceController.GetServices();
             var s7svc = services.FirstOrDefault(x => x.ServiceName == "s7oiehsx" || x.ServiceName == "s7oiehsx64");
@@ -35,15 +30,15 @@ namespace NetToPLCSimLite.Helpers
             return s7svc;
         }
 
-        public static bool StartS7Service(ServiceController s7svc)
+        public bool StartService(ServiceController svc, int timeout)
         {
-            if (s7svc == null) return false;
-            if (s7svc.Status == ServiceControllerStatus.Running) return true;
-            s7svc.Start();
-            s7svc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromMilliseconds(Timeout));
-            s7svc.Refresh();
+            if (svc == null) return false;
+            if (svc.Status == ServiceControllerStatus.Running) return true;
+            svc.Start();
+            svc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromMilliseconds(timeout));
+            svc.Refresh();
 
-            if (s7svc.Status == ServiceControllerStatus.Running)
+            if (svc.Status == ServiceControllerStatus.Running)
             {
                 log.Info("OK, Start S7 online service.");
                 return true;
@@ -55,15 +50,15 @@ namespace NetToPLCSimLite.Helpers
             }
         }
 
-        public static bool StopS7Service(ServiceController s7svc)
+        public bool StopService(ServiceController svc, int timeout)
         {
-            if (s7svc == null) return false;
-            if (s7svc.Status == ServiceControllerStatus.Stopped) return true;
-            s7svc.Stop();
-            s7svc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromMilliseconds(Timeout));
-            s7svc.Refresh();
+            if (svc == null) return false;
+            if (svc.Status == ServiceControllerStatus.Stopped) return true;
+            svc.Stop();
+            svc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromMilliseconds(timeout));
+            svc.Refresh();
 
-            if (s7svc.Status == ServiceControllerStatus.Stopped)
+            if (svc.Status == ServiceControllerStatus.Stopped)
             {
                 log.Info("OK, Stop S7 online service.");
                 return true;
@@ -75,11 +70,11 @@ namespace NetToPLCSimLite.Helpers
             }
         }
 
-        public static bool StartTcpServer()
+        public bool StartTcpServer(int port)
         {
             try
             {
-                tcp = new TcpListener(IPAddress.Any, S7Port);
+                tcp = new TcpListener(IPAddress.Any, port);
                 tcp.Start();
                 if (tcp.Server.IsBound)
                 {
@@ -100,7 +95,7 @@ namespace NetToPLCSimLite.Helpers
             }
         }
 
-        public static bool StopTcpServer()
+        public bool StopTcpServer()
         {
             try
             {
@@ -123,7 +118,7 @@ namespace NetToPLCSimLite.Helpers
             }
         }
 
-        public static bool IsS7PortAvailable()
+        public bool IsPortAvailable(int port)
         {
             bool isAvailable = true;
 
@@ -136,7 +131,7 @@ namespace NetToPLCSimLite.Helpers
 
             foreach (var endpoint in tcpConnInfoArray)
             {
-                if (endpoint.Port == S7Port)
+                if (endpoint.Port == port)
                 {
                     isAvailable = false;
                     break;
@@ -145,12 +140,12 @@ namespace NetToPLCSimLite.Helpers
 
             if (isAvailable)
             {
-                log.Info($"OK, Port {S7Port} avilable.");
+                log.Info($"OK, Port({port}) avilable.");
                 return true;
             }
             else
             {
-                log.Warn($"NG, Port {S7Port} avilable.");
+                log.Warn($"NG, Port({port}) avilable.");
                 return false;
             }
         }

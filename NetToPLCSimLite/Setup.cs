@@ -29,9 +29,8 @@ namespace NetToPLCSimLite
                 PipeName = pipeCfg["NAME"].StringValue,
                 PipeServerName = pipeCfg["PROC_NAME"].StringValue,
                 PipeServerPath = pipeCfg["PATH"].StringValue,
+                SvcTimeout = netCfg["SVC_TIMEOUT"].IntValue,
             };
-
-            S7ServiceHelper.Timeout = netCfg["SVC_TIMEOUT"].IntValue;
         }
         #endregion
 
@@ -41,31 +40,7 @@ namespace NetToPLCSimLite
             log.Info("Start Program.");
             try
             {
-                log.Info("RUN, Get S7 online port.");
-                var s7svc = S7ServiceHelper.FindS7Service();
-                if (s7svc == null) throw new NullReferenceException();
-
-                var before = S7ServiceHelper.IsS7PortAvailable();
-                if (!before)
-                {
-                    S7ServiceHelper.StopS7Service(s7svc);
-                    Thread.Sleep(50);
-
-                    S7ServiceHelper.StartTcpServer();
-                    Thread.Sleep(50);
-
-                    if(!S7ServiceHelper.StartS7Service(s7svc)) throw new InvalidOperationException("FAIL, You must run S7 online service.");
-                    Thread.Sleep(50);
-
-                    S7ServiceHelper.StopTcpServer();
-                    Thread.Sleep(50);
-
-                    if (S7ServiceHelper.IsS7PortAvailable()) log.Info("FINISH, Get S7 online port.");
-                    else throw new InvalidOperationException("FAIL, Can not get S7 online port.");
-                }
-                else log.Info("FINISH, Get S7 online port.");
-
-                s7Plcsim.StartListenPipe();
+                s7Plcsim.Run();
 
                 #region USER
                 Task.Run(() =>

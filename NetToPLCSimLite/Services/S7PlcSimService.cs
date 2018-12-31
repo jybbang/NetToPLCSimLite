@@ -11,6 +11,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace NetToPLCSimLite.Services
@@ -20,37 +21,27 @@ namespace NetToPLCSimLite.Services
         #region Fields
         private readonly ILog log = LogExt.log;
         private NamedPipeClient<List<byte[]>> pipeClient;
+
+        private readonly List<S7PlcSim> PlcSimList = new List<S7PlcSim>();
         private readonly ConcurrentQueue<List<byte[]>> msgQueue = new ConcurrentQueue<List<byte[]>>();
         private readonly ConcurrentDictionary<string, IsoToS7online> s7ServerList = new ConcurrentDictionary<string, IsoToS7online>();
         #endregion
 
         #region Properties
-        public List<S7PlcSim> PlcSimList { get; } = new List<S7PlcSim>();
+        public int S7Port { get; set; } = CONST.S7_PORT;
+        public int SvcTimeout { get; set; } = CONST.SVC_TIMEOUT;
         public string PipeName { get; set; }
         public string PipeServerName { get; set; }
         public string PipeServerPath { get; set; }
         #endregion
-        
+
         #region Public Methods
-        public void StartListenPipe()
+        public void Run()
         {
-            if (string.IsNullOrEmpty(PipeName)) throw new ArgumentNullException(nameof(PipeName));
-            pipeClient = new NamedPipeClient<List<byte[]>>(PipeName);
-
-            pipeClient.ServerMessage += PipeClient_ServerMessage;
-            pipeClient.Disconnected += PipeClient_Disconnected;
-            pipeClient.Error += PipeClient_Error;
-            pipeClient.Start();
-            log.Info("START, S7PlcSimService PipeClient Listenning.");
-        }
-
-        public void StopListenPipe()
-        {
-            pipeClient.ServerMessage -= PipeClient_ServerMessage;
-            pipeClient.Disconnected -= PipeClient_Disconnected;
-            pipeClient.Error -= PipeClient_Error;
-            pipeClient.Stop();
-            log.Info("STOP, S7PlcSimService PipeClient Listenning.");
+            log.Info("START, Running NetToPLCSimLite.");
+            if (!GetS7Port()) throw new InvalidOperationException();
+            StartPipe();
+            log.Info("FINISH, Running NetToPLCSimLite.");
         }
 
         public override string ToString()
@@ -65,6 +56,51 @@ namespace NetToPLCSimLite.Services
         #endregion
 
         #region Private Methods
+        private bool GetS7Port()
+        {
+            var service = new S7ServiceHelper();
+            var s7svc = service.FindS7Service();
+            if (s7svc == null) throw new NullReferenceException();
+
+            var before = service.IsPortAvailable(S7Port);
+            if (!before)
+            {
+                service.StopService(s7svc, SvcTimeout);
+                Thread.Sleep(100);
+
+                service.StartTcpServer(S7Port);
+                Thread.Sleep(100);
+
+                if (!service.StartService(s7svc, SvcTimeout)) return false;
+                Thread.Sleep(100);
+
+                service.StopTcpServer();
+                Thread.Sleep(100);
+            }
+
+            return service.IsPortAvailable(S7Port);
+        }
+
+        private void StartPipe()
+        {
+            if (string.IsNullOrEmpty(PipeName)) throw new ArgumentNullException(nameof(PipeName));
+            pipeClient = new NamedPipeClient<List<byte[]>>(PipeName);
+            pipeClient.ServerMessage += PipeClient_ServerMessage;
+            pipeClient.Disconnected += PipeClient_Disconnected;
+            pipeClient.Error += PipeClient_Error;
+            pipeClient.Start();
+            log.Info("START, S7PlcSimService PipeClient Listenning.");
+        }
+
+        private void StopPipe()
+        {
+            pipeClient.ServerMessage -= PipeClient_ServerMessage;
+            pipeClient.Disconnected -= PipeClient_Disconnected;
+            pipeClient.Error -= PipeClient_Error;
+            pipeClient.Stop();
+            log.Info("STOP, S7PlcSimService PipeClient Listenning.");
+        }
+
         private void PipeClient_Disconnected(NamedPipeConnection<List<byte[]>, List<byte[]>> connection)
         {
             log.Warn("S7PlcSimService PipeServer Disconnected.");
@@ -248,8 +284,8 @@ namespace NetToPLCSimLite.Services
                 if (disposing)
                 {
                     // TODO: 관리되는 상태(관리되는 개체)를 삭제합니다.
-                    StopListenPipe();
                     RemoveStation(PlcSimList);
+                    StopPipe();
                 }
 
                 // TODO: 관리되지 않는 리소스(관리되지 않는 개체)를 해제하고 아래의 종료자를 재정의합니다.
