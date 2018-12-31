@@ -63,7 +63,6 @@
   <ItemGroup>
     <Compile Include="CONST.cs" />
     <Compile Include="Helpers\Lib.cs" />
-    <Compile Include="LogExt.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Models\S7PlcSim.cs" />
@@ -84,9 +83,6 @@
     </PackageReference>
     <PackageReference Include="ConsoleTableExt">
       <Version>2.0.2</Version>
-    </PackageReference>
-    <PackageReference Include="log4net">
-      <Version>2.0.8</Version>
     </PackageReference>
     <PackageReference Include="NamedPipeWrapper">
       <Version>1.5.0</Version>

@@ -4,6 +4,8 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Text;
 using System.Collections;
+using log4net;
+using NetToPLCSimLite;
 
 // Basic Code of this server is taken from:
 // http://www.codeproject.com/KB/IP/BasicTcpServer.aspx
@@ -217,7 +219,7 @@ namespace TcpLib
                     conn.Close();
 
                     // modified by Ryu
-                    // System.Windows.Forms.MessageBox.Show("m_connections.Count >= _maxConnections");
+                    LogExt.log.Debug("m_connections.Count >= _maxConnections");
                 }
                 else
                 {
@@ -254,11 +256,11 @@ namespace TcpLib
                 {
                     st.m_conn.BeginReceive(st.m_buffer, 0, 0, SocketFlags.None, ReceivedDataReady, st);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
                     // modified by Ryu
                     DropConnection(st);
-                    //System.Windows.Forms.MessageBox.Show($"AcceptConnection_Handler: {e}");                                  
+                    LogExt.log.Error($"AcceptConnection_Handler", ex);                                
                 }
             }
         }

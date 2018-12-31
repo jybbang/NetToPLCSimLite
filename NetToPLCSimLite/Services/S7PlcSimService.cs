@@ -38,75 +38,110 @@ namespace NetToPLCSimLite.Services
         #region Public Methods
         public void Run()
         {
-            log.Info("START, Running NetToPLCSimLite.");
-            if (!GetS7Port()) throw new InvalidOperationException();
-            StartPipe();
-            log.Info("FINISH, Running NetToPLCSimLite.");
+            try
+            {
+                log.Info("START, Running NetToPLCSimLite.");
+                if (!GetS7Port()) throw new InvalidOperationException();
+                StartPipe();
+                log.Info("FINISH, Running NetToPLCSimLite.");
+            }
+            catch (Exception)
+            {
+                throw;
+            }
         }
 
         public override string ToString()
         {
-            var sb = new StringBuilder($"{Environment.NewLine}CURRENT [PLCSIM] LIST ( {PlcSimList.Count} ):");
-            if (PlcSimList.Count > 0)
+            try
             {
-                sb.Append(ConsoleTableBuilder.From(PlcSimList).WithFormat(ConsoleTableBuilderFormat.MarkDown).Export().ToString());
+                var sb = new StringBuilder($"{Environment.NewLine}CURRENT [PLCSIM] LIST ( {PlcSimList.Count} ):");
+                if (PlcSimList.Count > 0)
+                {
+                    sb.Append(ConsoleTableBuilder.From(PlcSimList).WithFormat(ConsoleTableBuilderFormat.MarkDown).Export().ToString());
+                }
+                return sb.AppendLine().ToString();
             }
-            return sb.AppendLine().ToString();
+            catch (Exception)
+            {
+                throw;
+            }
         }
         #endregion
 
         #region Private Methods
         private bool GetS7Port()
         {
-            var service = new S7ServiceHelper();
-            var s7svc = service.FindS7Service();
-            if (s7svc == null) throw new NullReferenceException();
-
-            var before = service.IsPortAvailable(S7Port);
-            if (!before)
+            try
             {
-                service.StopService(s7svc, SvcTimeout);
-                Thread.Sleep(100);
+                var service = new S7ServiceHelper();
+                var s7svc = service.FindS7Service();
+                if (s7svc == null) throw new NullReferenceException();
 
-                service.StartTcpServer(S7Port);
-                Thread.Sleep(100);
+                var before = service.IsPortAvailable(S7Port);
+                if (!before)
+                {
+                    service.StopService(s7svc, SvcTimeout);
+                    Thread.Sleep(100);
 
-                if (!service.StartService(s7svc, SvcTimeout)) return false;
-                Thread.Sleep(100);
+                    service.StartTcpServer(S7Port);
+                    Thread.Sleep(100);
 
-                service.StopTcpServer();
-                Thread.Sleep(100);
+                    if (!service.StartService(s7svc, SvcTimeout)) return false;
+                    Thread.Sleep(100);
+
+                    service.StopTcpServer();
+                    Thread.Sleep(100);
+                }
+
+                return service.IsPortAvailable(S7Port);
             }
-
-            return service.IsPortAvailable(S7Port);
+            catch (Exception)
+            {
+                throw;
+            }
         }
 
         private void StartPipe()
         {
-            if (string.IsNullOrEmpty(PipeName)) throw new ArgumentNullException(nameof(PipeName));
-            pipeClient = new NamedPipeClient<List<byte[]>>(PipeName);
-            pipeClient.ServerMessage += PipeClient_ServerMessage;
-            pipeClient.Disconnected += PipeClient_Disconnected;
-            pipeClient.Error += PipeClient_Error;
-            pipeClient.Start();
-            log.Info("START, S7PlcSimService PipeClient Listenning.");
+            try
+            {
+                if (string.IsNullOrEmpty(PipeName)) throw new ArgumentNullException(nameof(PipeName));
+                pipeClient = new NamedPipeClient<List<byte[]>>(PipeName);
+                pipeClient.ServerMessage += PipeClient_ServerMessage;
+                pipeClient.Disconnected += PipeClient_Disconnected;
+                pipeClient.Error += PipeClient_Error;
+                pipeClient.Start();
+                log.Info("OK, Start PipeClient Listenning.");
+            }
+            catch (Exception)
+            {
+                throw;
+            }
         }
 
         private void StopPipe()
         {
-            pipeClient.ServerMessage -= PipeClient_ServerMessage;
-            pipeClient.Disconnected -= PipeClient_Disconnected;
-            pipeClient.Error -= PipeClient_Error;
-            pipeClient.Stop();
-            log.Info("STOP, S7PlcSimService PipeClient Listenning.");
+            try
+            {
+                pipeClient.ServerMessage -= PipeClient_ServerMessage;
+                pipeClient.Disconnected -= PipeClient_Disconnected;
+                pipeClient.Error -= PipeClient_Error;
+                pipeClient.Stop();
+                log.Info("OK, Stop PipeClient Listenning.");
+            }
+            catch (Exception)
+            {
+                throw;
+            }
         }
 
         private void PipeClient_Disconnected(NamedPipeConnection<List<byte[]>, List<byte[]>> connection)
         {
-            log.Warn("S7PlcSimService PipeServer Disconnected.");
 
             try
             {
+                log.Warn("PIPE, Disconnected PipeServer.");
                 if (string.IsNullOrEmpty(PipeServerName)) return;
                 var procs = Process.GetProcessesByName(PipeServerName);
                 if (procs != null)
@@ -117,7 +152,7 @@ namespace NetToPLCSimLite.Services
 
                 if (!string.IsNullOrEmpty(PipeServerPath))
                 {
-                    log.Warn("PipeServer Program restart.");
+                    log.Warn("PIPE, Restart PipeServer.");
                     Process.Start(PipeServerPath);
                 }
             }
@@ -127,14 +162,14 @@ namespace NetToPLCSimLite.Services
             }
             finally
             {
-                log.Warn("Program Exit.");
+                log.Warn("RESTART PROGRAM.");
                 Environment.Exit(-1);
             }
         }
 
         private void PipeClient_Error(Exception exception)
         {
-            log.Error(nameof(S7PlcSimService), exception);
+            log.Error(nameof(PipeClient_Error), exception);
         }
 
         private void PipeClient_ServerMessage(NamedPipeConnection<List<byte[]>, List<byte[]>> connection, List<byte[]> message)
@@ -197,79 +232,93 @@ namespace NetToPLCSimLite.Services
 
         private void AddStation(IEnumerable<S7PlcSim> adding)
         {
-            log.Info("=== Adding S7 PLCSim List ===");
-            foreach (var item in adding)
+            try
             {
-                var tsaps = new List<byte[]>();
-                byte tsap2 = (byte)(item.Rack << 4 | item.Slot);
-                tsaps.Add(new byte[] { 0x01, tsap2 });
-                tsaps.Add(new byte[] { 0x02, tsap2 });
-                tsaps.Add(new byte[] { 0x03, tsap2 });
-
-                IsoToS7online srv = null;
-                try
+                log.Info("=== Adding S7 PLCSim List ===");
+                foreach (var item in adding)
                 {
-                    srv = new IsoToS7online(false);
-                    var ip = IPAddress.Parse(item.PlcIp);
-                    var err = string.Empty;
-                    var ret = srv.start(item.Name, ip, tsaps, ip, item.Rack, item.Slot, ref err);
-                    if (ret)
-                    {
-                        var conn = item.Connect();
-                        if (conn)
-                        {
-                            srv.DataReceived = item.DataReceived;
-                            s7ServerList.TryAdd(item.PlcIp, srv);
+                    var tsaps = new List<byte[]>();
+                    byte tsap2 = (byte)(item.Rack << 4 | item.Slot);
+                    tsaps.Add(new byte[] { 0x01, tsap2 });
+                    tsaps.Add(new byte[] { 0x02, tsap2 });
+                    tsaps.Add(new byte[] { 0x03, tsap2 });
 
-                            PlcSimList.Add(item);
-                            item.IsStarted = true;
-                            log.Info($"OK, Name:{item.Name}, IP:{item.PlcIp}");
+                    IsoToS7online srv = null;
+                    try
+                    {
+                        srv = new IsoToS7online(false);
+                        var ip = IPAddress.Parse(item.PlcIp);
+                        var err = string.Empty;
+                        var ret = srv.start(item.Name, ip, tsaps, ip, item.Rack, item.Slot, ref err);
+                        if (ret)
+                        {
+                            var conn = item.Connect();
+                            if (conn)
+                            {
+                                srv.DataReceived = item.DataReceived;
+                                s7ServerList.TryAdd(item.PlcIp, srv);
+
+                                PlcSimList.Add(item);
+                                item.IsStarted = true;
+                                log.Info($"OK, Name:{item.Name}, IP:{item.PlcIp}");
+                            }
+                            else
+                            {
+                                srv.stop();
+                                item.IsStarted = false;
+                                log.Warn($"NG, Name:{item.Name}, IP:{item.PlcIp}");
+                            }
                         }
                         else
-                        {
-                            srv.stop();
-                            item.IsStarted = false;
-                            log.Warn($"NG, Name:{item.Name}, IP:{item.PlcIp}");
-                        }
+                            log.Warn($"NG({err}), Can not start NetToPLCSimLite Server, Name:{item.Name}, IP:{item.PlcIp}");
                     }
-                    else
-                        log.Warn($"NG({err}), Can not start NetToPLCSimLite Server, Name:{item.Name}, IP:{item.PlcIp}");
+                    catch (Exception ex)
+                    {
+                        srv?.stop();
+                        item.Disconnect();
+                        item.IsStarted = false;
+                        log.Error($"ERR, Name:{item.Name}, IP:{item.PlcIp}, {ex.Message}");
+                    }
                 }
-                catch (Exception ex)
-                {
-                    srv?.stop();
-                    item.Disconnect();
-                    item.IsStarted = false;
-                    log.Error($"ERR, Name:{item.Name}, IP:{item.PlcIp}, {ex.Message}");
-                }
+            }
+            catch (Exception)
+            {
+                throw;
             }
         }
 
         private void RemoveStation(IEnumerable<S7PlcSim> removing)
         {
-            log.Info("=== Removing S7 PLCSim List ===");
-            foreach (var item in removing)
+            try
             {
-                try
+                log.Info("=== Removing S7 PLCSim List ===");
+                foreach (var item in removing)
                 {
-                    s7ServerList.TryRemove(item.PlcIp, out IsoToS7online srv);
-                    srv?.stop();
-                    item.Disconnect();
-                    item.IsStarted = false;
-
-                    var exist = PlcSimList.FirstOrDefault(x => x.PlcIp == item.PlcIp);
-                    if (exist != null)
+                    try
                     {
-                        PlcSimList.Remove(exist);
-                        log.Info($"OK, Name:{item.Name}, IP:{item.PlcIp}");
+                        s7ServerList.TryRemove(item.PlcIp, out IsoToS7online srv);
+                        srv?.stop();
+                        item.Disconnect();
+                        item.IsStarted = false;
+
+                        var exist = PlcSimList.FirstOrDefault(x => x.PlcIp == item.PlcIp);
+                        if (exist != null)
+                        {
+                            PlcSimList.Remove(exist);
+                            log.Info($"OK, Name:{item.Name}, IP:{item.PlcIp}");
+                        }
+                        else
+                            log.Warn($"NG, Name:{item.Name}, IP:{item.PlcIp}");
                     }
-                    else
-                        log.Warn($"NG, Name:{item.Name}, IP:{item.PlcIp}");
+                    catch (Exception ex)
+                    {
+                        log.Error($"ERR, Name:{item.Name}, IP:{item.PlcIp}, {ex.Message}");
+                    }
                 }
-                catch (Exception ex)
-                {
-                    log.Error($"ERR, Name:{item.Name}, IP:{item.PlcIp}, {ex.Message}");
-                }
+            }
+            catch (Exception)
+            {
+                throw;
             }
         }
         #endregion

@@ -59,7 +59,7 @@ namespace NetToPLCSimLite.Models
             S1300 = 40,
         }
         #endregion
-        
+
         #region Public Methods
         public bool Connect()
         {
@@ -98,24 +98,31 @@ namespace NetToPLCSimLite.Models
 
         public void Disconnect()
         {
-            timer.Elapsed -= Timer_Elapsed;
-            timer.Stop();
-
-            if (IsConnected)
+            try
             {
-                plcsim.ConnectionError -= Plcsim_ConnectionError;
-                plcsim.Disconnect();
-                IsConnected = false;
-                IsStarted = false;
-                log.Info($"DISCONNECTED, Name:{Name}, IP:{PlcIp}, INS:{Instance}");
+                timer.Elapsed -= Timer_Elapsed;
+                timer.Stop();
+
+                if (IsConnected)
+                {
+                    plcsim.ConnectionError -= Plcsim_ConnectionError;
+                    plcsim.Disconnect();
+                    IsConnected = false;
+                    IsStarted = false;
+                    log.Info($"DISCONNECTED, Name:{Name}, IP:{PlcIp}, INS:{Instance}");
+                }
+            }
+            catch (Exception)
+            {
+                throw;
             }
         }
 
         public void DataReceived(byte[] received)
         {
-            if (!IsConnected) return;
             try
             {
+                if (!IsConnected) return;
                 queue.Enqueue(received);
                 while (!queue.IsEmpty)
                 {
@@ -182,8 +189,15 @@ namespace NetToPLCSimLite.Models
         #region Private Methods
         private void Plcsim_ConnectionError(string ControlEngine, int Error)
         {
-            log.Error($"PROSIM ERROR({Error}), Name:{Name}, IP:{PlcIp}, INS:{PlcPath}");
-            Disconnect();
+            try
+            {
+                log.Error($"PROSIM ERROR({Error}), Name:{Name}, IP:{PlcIp}, INS:{PlcPath}");
+                Disconnect();
+            }
+            catch (Exception ex)
+            {
+                log.Error(nameof(Plcsim_ConnectionError), ex);
+            }
         }
 
         private void Timer_Elapsed(object sender, ElapsedEventArgs e)
@@ -199,7 +213,7 @@ namespace NetToPLCSimLite.Models
             }
             catch (Exception ex)
             {
-                log.Error(nameof(S7PlcSim), ex);
+                log.Error(nameof(Timer_Elapsed), ex);
             }
         }
         #endregion

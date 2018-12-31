@@ -37,7 +37,7 @@ namespace NetToPLCSimLite
         #region Public Methods
         public override int Start()
         {
-            log.Info("Start Program.");
+            log.Info("START PROGRAM.");
             try
             {
                 s7Plcsim.Run();
@@ -76,7 +76,7 @@ namespace NetToPLCSimLite
             finally
             {
                 s7Plcsim?.Dispose();
-                log.Info("Exit Program.");
+                log.Info("EXIT PROGRAM.");
             }
 
             return 0;
