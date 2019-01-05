@@ -61,6 +61,11 @@ namespace NetToPLCSimLite.Models
         #endregion
 
         #region Public Methods
+        public override string ToString()
+        {
+            return $"Name:{Name}, IP:{Ip}, Connected:{IsConnected}, Started:{IsStarted}, Instance:{Instance}";
+        }
+
         public bool Connect()
         {
             try

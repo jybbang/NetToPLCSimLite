@@ -20,7 +20,8 @@ namespace NetToPLCSimLite.Services
     {
         #region Fields
         private readonly ILog log = LogExt.log;
-        private NamedPipeClient<List<byte[]>> pipeClient;
+        private NamedPipeClient<Tuple<string, List<byte[]>>> pipeClient;
+        private bool isBusy = false;
 
         private readonly List<S7Protocol> PlcSimList = new List<S7Protocol>();
         private readonly ConcurrentQueue<List<byte[]>> msgQueue = new ConcurrentQueue<List<byte[]>>();
@@ -72,8 +73,10 @@ namespace NetToPLCSimLite.Services
         #region Private Methods
         private bool GetS7Port()
         {
+            var ret = false;
             try
             {
+                log.Info($"START, Get S7 Port.");
                 var service = new S7ServiceHelper();
                 var s7svc = service.FindS7Service();
                 if (s7svc == null) throw new NullReferenceException();
@@ -94,54 +97,74 @@ namespace NetToPLCSimLite.Services
                     Thread.Sleep(100);
                 }
 
-                return service.IsPortAvailable(S7Port);
+                ret = service.IsPortAvailable(S7Port);
             }
             catch (Exception)
             {
+                ret = false;
                 throw;
+            }
+            finally
+            {
+                if(ret) log.Info($"OK, Get S7 Port.");
+                log.Warn($"NG, Get S7 Port.");
             }
         }
 
         private void StartPipe()
         {
+            var ret = false;
             try
             {
+                log.Info("START, Start PipeClient.");
                 if (string.IsNullOrEmpty(PipeName)) throw new ArgumentNullException(nameof(PipeName));
-                pipeClient = new NamedPipeClient<List<byte[]>>(PipeName);
+                pipeClient = new NamedPipeClient<Tuple<string, List<byte[]>>>(PipeName);
                 pipeClient.ServerMessage += PipeClient_ServerMessage;
                 pipeClient.Disconnected += PipeClient_Disconnected;
                 pipeClient.Error += PipeClient_Error;
                 pipeClient.Start();
-                log.Info("OK, Start PipeClient Listenning.");
+                ret = true;
             }
             catch (Exception)
             {
+                ret = false;
                 throw;
+            }
+            finally
+            {
+                if(ret) log.Info("OK, Start PipeClient.");                
+                log.Warn("NG, Start PipeClient.");
             }
         }
 
         private void StopPipe()
         {
+            var ret = false;
             try
             {
+                log.Info("START, Stop PipeClient.");
                 pipeClient.ServerMessage -= PipeClient_ServerMessage;
                 pipeClient.Disconnected -= PipeClient_Disconnected;
                 pipeClient.Error -= PipeClient_Error;
                 pipeClient.Stop();
-                log.Info("OK, Stop PipeClient Listenning.");
             }
             catch (Exception)
             {
+                ret = false;
                 throw;
+            }
+            finally
+            {
+                if(ret) log.Info("OK, Stop PipeClient.");
+                log.Warn("NG, Stop PipeClient.");
             }
         }
 
-        private void PipeClient_Disconnected(NamedPipeConnection<List<byte[]>, List<byte[]>> connection)
+        private void PipeClient_Disconnected(NamedPipeConnection<Tuple<string, List<byte[]>, Tuple<string, List<byte[]>>> connection)
         {
-
             try
             {
-                log.Warn("PIPE, Disconnected PipeServer.");
+                log.Warn("PIPE, PipeServer Disconnected.");
                 if (string.IsNullOrEmpty(PipeServerName)) return;
                 var procs = Process.GetProcessesByName(PipeServerName);
                 if (procs != null)
@@ -152,7 +175,7 @@ namespace NetToPLCSimLite.Services
 
                 if (!string.IsNullOrEmpty(PipeServerPath))
                 {
-                    log.Warn("PIPE, Restart PipeServer.");
+                    log.Warn("PIPE, PipeServer Program restart.");
                     Process.Start(PipeServerPath);
                 }
             }
@@ -162,7 +185,7 @@ namespace NetToPLCSimLite.Services
             }
             finally
             {
-                log.Warn("RESTART PROGRAM.");
+                log.Warn("Exit Program due to PipeServer.");
                 Environment.Exit(-1);
             }
         }
@@ -172,12 +195,14 @@ namespace NetToPLCSimLite.Services
             log.Error(nameof(PipeClient_Error), exception);
         }
 
-        private void PipeClient_ServerMessage(NamedPipeConnection<List<byte[]>, List<byte[]>> connection, List<byte[]> message)
+        private void PipeClient_ServerMessage(NamedPipeConnection<Tuple<string, List<byte[]>>, Tuple<string, List<byte[]>>> connection, Tuple<string, List<byte[]>> message)
         {
             try
             {
-                log.Debug("RECEIVED, PipeClient ServerMessage");
-                msgQueue.Enqueue(message);
+                log.Debug("PIPE, Received ServerMessage");
+                msgQueue.Enqueue(message.Item2);
+                if(isBusy) return;
+                isBusy = true;
                 List<byte[]> msg = null;
                 while (!msgQueue.IsEmpty)
                 {
@@ -196,7 +221,7 @@ namespace NetToPLCSimLite.Services
                     var exist = PlcSimList.FirstOrDefault(x => x.Ip == plc.Ip);
                     if (exist == null) adding.Add(plc);
                     else plc.IsStarted = exist.IsStarted;
-                    log.Debug($"Name:{plc.Name}, IP:{plc.Ip}");
+                    log.Debug(plc.ToString());
                 }
 
                 log.Debug("=== Current S7 PLCSim List ===");
@@ -205,7 +230,7 @@ namespace NetToPLCSimLite.Services
                 {
                     var exist = original.FirstOrDefault(x => x.Ip == plc.Ip);
                     if (exist == null) removing.Add(plc);
-                    log.Debug($"Name:{plc.Name}, IP:{plc.Ip}");
+                    log.Debug(plc.ToString());
                 }
 
                 if (adding.Count > 0) AddStation(adding);
@@ -214,7 +239,7 @@ namespace NetToPLCSimLite.Services
                 // Return
                 var ret = original.Select(x => x.ToProtobuf()).ToList();
                 if (ret == null) return;
-                connection.PushMessage(ret);
+                connection.PushMessage(new Tuple<string, List<byte[]>(message.Item1 ?? string.Empty, ret));
             }
             catch (Exception ex)
             {
@@ -222,10 +247,11 @@ namespace NetToPLCSimLite.Services
             }
             finally
             {
+                isBusy = false;
                 log.Debug("=== Running S7 PLCSim List ===");
                 foreach (var item in PlcSimList)
                 {
-                    log.Debug($"Name:{item.Name}, IP:{item.Ip}, Connected:{item.IsConnected}, Started:{item.IsStarted}");
+                    log.Debug(item.ToString());
                 }
             }
         }
@@ -260,24 +286,24 @@ namespace NetToPLCSimLite.Services
 
                                 PlcSimList.Add(item);
                                 item.IsStarted = true;
-                                log.Info($"OK, Name:{item.Name}, IP:{item.Ip}");
+                                log.Info($"OK, {item.ToString()}");
                             }
                             else
                             {
                                 srv.stop();
                                 item.IsStarted = false;
-                                log.Warn($"NG, Name:{item.Name}, IP:{item.Ip}");
+                                log.Warn($"NG, {item.ToString()}");
                             }
                         }
                         else
-                            log.Warn($"NG({err}), Can not start NetToPLCSimLite Server, Name:{item.Name}, IP:{item.Ip}");
+                            log.Warn($"NG({err}), {item.ToString()}");
                     }
                     catch (Exception ex)
                     {
                         srv?.stop();
                         item.Disconnect();
                         item.IsStarted = false;
-                        log.Error($"ERR, Name:{item.Name}, IP:{item.Ip}, {ex.Message}");
+                        log.Error($"ERR, {item.ToString()}", ex);
                     }
                 }
             }
@@ -305,14 +331,14 @@ namespace NetToPLCSimLite.Services
                         if (exist != null)
                         {
                             PlcSimList.Remove(exist);
-                            log.Info($"OK, Name:{item.Name}, IP:{item.Ip}");
+                            log.Info($"OK, {item.ToString()}");
                         }
                         else
-                            log.Warn($"NG, Name:{item.Name}, IP:{item.Ip}");
+                            log.Warn($"NG, {item.ToString()}");
                     }
                     catch (Exception ex)
                     {
-                        log.Error($"ERR, Name:{item.Name}, IP:{item.Ip}, {ex.Message}");
+                        log.Error($"ERR, {item.ToString()}", ex);
                     }
                 }
             }
