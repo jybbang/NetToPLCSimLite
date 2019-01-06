@@ -172,7 +172,7 @@ namespace NetToPLCSimLite.Services
                 if (procs != null)
                     foreach (var proc in procs)
                     {
-                        proc.ProcessKill();
+                        proc.Kill();
                     }
 
                 if (!string.IsNullOrEmpty(PipeServerPath))
