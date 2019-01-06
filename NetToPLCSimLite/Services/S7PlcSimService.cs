@@ -107,7 +107,7 @@ namespace NetToPLCSimLite.Services
             finally
             {
                 if (ret) log.Info($"OK, Get S7 Port.");
-                log.Warn($"NG, Get S7 Port.");
+                else log.Warn($"NG, Get S7 Port.");
             }
             return ret;
         }
@@ -134,7 +134,7 @@ namespace NetToPLCSimLite.Services
             finally
             {
                 if (ret) log.Info("OK, Start PipeClient.");
-                log.Warn("NG, Start PipeClient.");
+                else log.Warn("NG, Start PipeClient.");
             }
         }
 
@@ -158,7 +158,7 @@ namespace NetToPLCSimLite.Services
             finally
             {
                 if (ret) log.Info("OK, Stop PipeClient.");
-                log.Warn("NG, Stop PipeClient.");
+                else log.Warn("NG, Stop PipeClient.");
             }
         }
 
