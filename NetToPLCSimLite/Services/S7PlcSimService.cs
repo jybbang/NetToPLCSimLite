@@ -1,10 +1,4 @@
-﻿using ConsoleTableExt;
-using IsoOnTcp;
-using log4net;
-using NamedPipeWrapper;
-using NetToPLCSimLite.Helpers;
-using NetToPLCSimLite.Models;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -13,6 +7,12 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using ConsoleTableExt;
+using IsoOnTcp;
+using log4net;
+using NamedPipeWrapper;
+using NetToPLCSimLite.Helpers;
+using NetToPLCSimLite.Models;
 
 namespace NetToPLCSimLite.Services
 {
@@ -106,9 +106,10 @@ namespace NetToPLCSimLite.Services
             }
             finally
             {
-                if(ret) log.Info($"OK, Get S7 Port.");
+                if (ret) log.Info($"OK, Get S7 Port.");
                 log.Warn($"NG, Get S7 Port.");
             }
+            return ret;
         }
 
         private void StartPipe()
@@ -132,7 +133,7 @@ namespace NetToPLCSimLite.Services
             }
             finally
             {
-                if(ret) log.Info("OK, Start PipeClient.");                
+                if (ret) log.Info("OK, Start PipeClient.");
                 log.Warn("NG, Start PipeClient.");
             }
         }
@@ -143,6 +144,7 @@ namespace NetToPLCSimLite.Services
             try
             {
                 log.Info("START, Stop PipeClient.");
+                if (pipeClient == null) return;
                 pipeClient.ServerMessage -= PipeClient_ServerMessage;
                 pipeClient.Disconnected -= PipeClient_Disconnected;
                 pipeClient.Error -= PipeClient_Error;
@@ -155,12 +157,12 @@ namespace NetToPLCSimLite.Services
             }
             finally
             {
-                if(ret) log.Info("OK, Stop PipeClient.");
+                if (ret) log.Info("OK, Stop PipeClient.");
                 log.Warn("NG, Stop PipeClient.");
             }
         }
 
-        private void PipeClient_Disconnected(NamedPipeConnection<Tuple<string, List<byte[]>, Tuple<string, List<byte[]>>> connection)
+        private void PipeClient_Disconnected(NamedPipeConnection<Tuple<string, List<byte[]>>, Tuple<string, List<byte[]>>> connection)
         {
             try
             {
@@ -201,7 +203,7 @@ namespace NetToPLCSimLite.Services
             {
                 log.Debug("PIPE, Received ServerMessage");
                 msgQueue.Enqueue(message.Item2);
-                if(isBusy) return;
+                if (isBusy) return;
                 isBusy = true;
                 List<byte[]> msg = null;
                 while (!msgQueue.IsEmpty)
@@ -239,7 +241,7 @@ namespace NetToPLCSimLite.Services
                 // Return
                 var ret = original.Select(x => x.ToProtobuf()).ToList();
                 if (ret == null) return;
-                connection.PushMessage(new Tuple<string, List<byte[]>(message.Item1 ?? string.Empty, ret));
+                connection.PushMessage(new Tuple<string, List<byte[]>>(message.Item1 ?? string.Empty, ret));
             }
             catch (Exception ex)
             {
