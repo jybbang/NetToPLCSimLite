@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -175,7 +176,7 @@ namespace NetToPLCSimLite.Services
                         proc.Kill();
                     }
 
-                if (!string.IsNullOrEmpty(PipeServerPath))
+                if (!string.IsNullOrEmpty(PipeServerPath) || File.Exists(PipeServerPath))
                 {
                     log.Warn("PIPE, PipeServer Program restart.");
                     Process.Start(PipeServerPath);
