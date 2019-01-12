@@ -74,7 +74,6 @@ namespace NetToPLCSimLite.Models
                 if (Instance < 1 || Instance > 8) return false;
                 Disconnect();
 
-                log.Info($"CONNECTING, Name:{Name}, IP:{Ip}, INS:{PlcPath}");
                 plcsim.ConnectionError -= Plcsim_ConnectionError;
                 plcsim.ConnectionError += Plcsim_ConnectionError;
                 plcsim.ConnectExt(Instance);
@@ -89,9 +88,7 @@ namespace NetToPLCSimLite.Models
                     timer.Elapsed += Timer_Elapsed;
                     timer.Interval = 1000;
                     timer.Start();
-                    log.Info($"OK, Name:{Name}, IP:{Ip}, INS:{PlcPath}");
                 }
-                else log.Warn($"NG, Name:{Name}, IP:{Ip}, INS:{PlcPath}");
             }
             catch (Exception ex)
             {

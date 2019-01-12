@@ -1,9 +1,9 @@
 using System;
+using System.Collections;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using System.Text;
-using System.Collections;
+using System.Threading;
 using NetToPLCSimLite;
 
 // Basic Code of this server is taken from:
@@ -58,7 +58,7 @@ namespace TcpLib
                     return m_conn.Receive(buffer, offset, count, SocketFlags.None);
                 else return 0;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 LogExt.log.Error("TcpServer", ex);
                 return 0;
@@ -323,7 +323,7 @@ namespace TcpLib
         {
             lock (this)
             {
-                m_listener.Close();
+                m_listener?.Close();
                 m_listener = null;
                 //Close all active connections
                 foreach (object obj in m_connections)
@@ -335,6 +335,7 @@ namespace TcpLib
                         LogExt.log.Error("TcpServer", ex);
                         //some error in the provider
                     }
+                    DropConnection(st);
                     st.m_conn.Shutdown(SocketShutdown.Both);
                     st.m_conn.Close();
                 }
