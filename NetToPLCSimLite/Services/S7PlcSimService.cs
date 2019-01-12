@@ -361,18 +361,17 @@ namespace NetToPLCSimLite.Services
         private void ErrorHandler(string ip)
         {
             // Return
-            foreach (var item in PlcSimList)
+            var error = PlcSimList.FirstOrDefault(x => !x.IsConnected && x.Ip == ip);
+            if (error != null && s7ServerList.TryGetValue(error.Ip, out IsoToS7online srv))
             {
-                if (!item.IsConnected && s7ServerList.TryGetValue(item.Ip, out IsoToS7online srv))
-                {
-                    srv.stop();
-                    item.IsStarted = false;
-                }
+                srv.stop();
+                error.IsStarted = false;
             }
 
             var ret = PlcSimList.Select(x => x.ToProtobuf()).ToList();
             if (ret == null) return;
             pipeClient.PushMessage(new Tuple<string, List<byte[]>>(string.Empty, ret));
+            PlcSimList.Remove(error);
         }
         #endregion
 
