@@ -89,8 +89,8 @@ namespace NetToPLCSimLite.Helpers
             }
             catch (Exception ex)
             {
-                StopTcpServer();
                 log.Error(nameof(StartTcpServer), ex);
+                StopTcpServer();
                 return false;
             }
         }

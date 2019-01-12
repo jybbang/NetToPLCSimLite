@@ -57,7 +57,7 @@ namespace NetToPLCSimLite.Services
         {
             try
             {
-                var sb = new StringBuilder($"{Environment.NewLine}CURRENT [PLCSIM] LIST ( {PlcSimList.Count} ):");
+                var sb = new StringBuilder($"{Environment.NewLine}CURRENT [PLCSIM] LIST ( {PlcSimList.Count} ):{Environment.NewLine}");
                 if (PlcSimList.Count > 0)
                 {
                     sb.Append(ConsoleTableBuilder.From(PlcSimList).WithFormat(ConsoleTableBuilderFormat.MarkDown).Export().ToString());
@@ -213,7 +213,7 @@ namespace NetToPLCSimLite.Services
                 }
                 if (msg == null) return;
 
-                log.Debug("=== Received S7 PLCSim List ===");
+                log.Debug($"=== Received S7 PLCSim List ===");
                 var adding = new List<S7Protocol>();
                 var original = new List<S7Protocol>();
                 foreach (var item in msg)
@@ -226,8 +226,9 @@ namespace NetToPLCSimLite.Services
                     else plc.IsStarted = exist.IsStarted;
                     log.Debug(plc.ToString());
                 }
+                log.Debug("==============================");
 
-                log.Debug("=== Current S7 PLCSim List ===");
+                log.Debug($"=== Current S7 PLCSim List ===");
                 var removing = new List<S7Protocol>();
                 foreach (var plc in PlcSimList)
                 {
@@ -235,6 +236,7 @@ namespace NetToPLCSimLite.Services
                     if (exist == null) removing.Add(plc);
                     log.Debug(plc.ToString());
                 }
+                log.Debug("==============================");
 
                 if (adding.Count > 0) AddStation(adding);
                 if (removing.Count > 0) RemoveStation(removing);
@@ -251,11 +253,12 @@ namespace NetToPLCSimLite.Services
             finally
             {
                 isBusy = false;
-                log.Debug("=== Running S7 PLCSim List ===");
+                log.Debug($"=== Running S7 PLCSim List ===");
                 foreach (var item in PlcSimList)
                 {
                     log.Debug(item.ToString());
                 }
+                log.Debug("==============================");
             }
         }
 
@@ -263,7 +266,7 @@ namespace NetToPLCSimLite.Services
         {
             try
             {
-                log.Info("=== Adding S7 PLCSim List ===");
+                log.Info($"=== Adding S7 PLCSim List ===");
                 foreach (var item in adding)
                 {
                     var tsaps = new List<byte[]>();
@@ -289,6 +292,8 @@ namespace NetToPLCSimLite.Services
 
                                 PlcSimList.Add(item);
                                 item.IsStarted = true;
+                                item.ErrorHandler = new Action<string>((ipp) => ErrorHandler(ipp));
+
                                 log.Info($"OK, {item.ToString()}");
                             }
                             else
@@ -303,12 +308,13 @@ namespace NetToPLCSimLite.Services
                     }
                     catch (Exception ex)
                     {
+                        log.Error($"ERR, {item.ToString()}", ex);
                         srv?.stop();
                         item.Disconnect();
                         item.IsStarted = false;
-                        log.Error($"ERR, {item.ToString()}", ex);
                     }
                 }
+                log.Debug("==============================");
             }
             catch (Exception)
             {
@@ -320,7 +326,7 @@ namespace NetToPLCSimLite.Services
         {
             try
             {
-                log.Info("=== Removing S7 PLCSim List ===");
+                log.Info($"=== Removing S7 PLCSim List ===");
                 foreach (var item in removing)
                 {
                     try
@@ -344,11 +350,29 @@ namespace NetToPLCSimLite.Services
                         log.Error($"ERR, {item.ToString()}", ex);
                     }
                 }
+                log.Debug("==============================");
             }
             catch (Exception)
             {
                 throw;
             }
+        }
+
+        private void ErrorHandler(string ip)
+        {
+            // Return
+            foreach (var item in PlcSimList)
+            {
+                if (!item.IsConnected && s7ServerList.TryGetValue(item.Ip, out IsoToS7online srv))
+                {
+                    srv.stop();
+                    item.IsStarted = false;
+                }
+            }
+
+            var ret = PlcSimList.Select(x => x.ToProtobuf()).ToList();
+            if (ret == null) return;
+            pipeClient.PushMessage(new Tuple<string, List<byte[]>>(string.Empty, ret));
         }
         #endregion
 

@@ -130,7 +130,7 @@ namespace IsoOnTcp
                     Varpart.Add(vp);
                 }
             }
-            catch
+            catch (Exception)
             {
                 throw new Exception("TPDU: Error parsing variable part of CR/CC PDU.");
             }

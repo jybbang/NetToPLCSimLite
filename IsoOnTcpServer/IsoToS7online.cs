@@ -11,14 +11,14 @@
  * License, or (at your option) any later version.
  /*********************************************************************/
 
-using PlcsimS7online;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Threading;
-using System.Threading.Tasks;
+using NetToPLCSimLite;
+using PlcsimS7online;
 using TcpLib;
 
 namespace IsoOnTcp
@@ -45,10 +45,9 @@ namespace IsoOnTcp
             Dispose(false);
         }
 
+        // JYB: void -> bool
         public bool start(string name, IPAddress networkIpAdress, List<byte[]> tsaps, IPAddress plcsimIp, int plcsimRackNumber, int plcsimSlotNumber, ref string error)
         {
-            bool rtn = false;
-
             m_Provider = new IsoServiceProvider();
             m_Provider.ISOsrv.OnReceived = this.IsoReceived;
             m_Provider.ISOsrv.SetValidTsaps(tsaps);
@@ -60,9 +59,10 @@ namespace IsoOnTcp
             m_Provider.m_Name = name;
 
             m_Server = new TcpServer(m_Provider, 102);
-            rtn = m_Server.Start(m_NetworkIpAdress, ref error);
-
-            return rtn;
+            // m_Server.Start(m_NetworkIpAdress);
+            var ret = m_Server.Start(m_NetworkIpAdress, ref error);
+            LogExt.log.Debug("isoToS7online, Start.");
+            return ret;
         }
 
         public void stop()
@@ -83,9 +83,9 @@ namespace IsoOnTcp
                     {
                         stop();
                     }
-                    catch
+                    catch (Exception ex)
                     {
-
+                        LogExt.log.Error("TcpServer", ex);
                     }
                 }
             }
@@ -158,9 +158,8 @@ namespace IsoOnTcp
                 client.IsoSend(client.client, res);
             }
 
-            // to ProSIM
+            // JYB
             DataReceived?.Invoke(data);
-            //if (DataReceived != null) DataReceived(m_Provider.m_PlcsimIpAdress.ToString(), data);
         }
 
         // delegate an event for monitor output
@@ -214,7 +213,7 @@ namespace IsoOnTcp
 
         public void IsoLog(string message)
         {
-            Console.WriteLine(message);
+            LogExt.log.Debug($"ISO: {message}");
         }
 
         public void TCPSend(ConnectionState state, byte[] data)
@@ -232,8 +231,9 @@ namespace IsoOnTcp
             {
                 ISOsrv.Send(state, data);
             }
-            catch
+            catch (Exception ex)
             {
+                LogExt.log.Error("TcpServer", ex);
                 client.EndConnection();
             }
         }
@@ -299,8 +299,9 @@ namespace IsoOnTcp
                             client.EndConnection();
                         }
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        LogExt.log.Error("TcpServer", ex);
                         client.EndConnection();
                     }
                 }
@@ -339,8 +340,9 @@ namespace IsoOnTcp
                 SendMessage(m_PlcS7onlineMsgPump_Handle, PlcS7onlineMsgPump.WM_M_CONNECTPLCSIM, IntPtr.Zero, IntPtr.Zero);
                 m_autoEvent_ConnectPlcsim.WaitOne();        // Wait until a connect success or connect error was received
             }
-            catch
+            catch (Exception ex)
             {
+                LogExt.log.Error("TcpServer", ex);
                 return false;
             }
             return m_ConnectPlcsimSuccess;

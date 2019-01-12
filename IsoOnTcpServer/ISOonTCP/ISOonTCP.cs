@@ -19,6 +19,7 @@ using System.Text;
 using System.IO;
 using HexDumping;
 using TcpLib;
+using NetToPLCSimLite;
 
 namespace IsoOnTcp
 {
@@ -41,7 +42,7 @@ namespace IsoOnTcp
         public delegate void _Log(string message);
 
         private MemoryStream m_payloadFragmentData;
-
+        
         public void Process(IsoServiceProvider client, byte[] packet)
         {
             Process(client, packet, packet.Length);
@@ -68,57 +69,64 @@ namespace IsoOnTcp
                 switch (PDU.PDUType)
                 {
                     case (byte)TPDU.TPDU_TYPES.CR:
-                        if (Connected)
                         {
-                            break;
-                        }
+                            if (Connected)
+                            {
+                                break;
+                            }
 
-                        TPKT resPkt = new TPKT();
-                        TPDU resPdu = new TPDU();
-                        resPdu.PDUType = (byte)TPDU.TPDU_TYPES.CC;
-                        Connected = false;
-                        m_payloadFragmentData = new MemoryStream(1024);    // Stream for TPDU fragments, S7 PDU has max. 960 bytes
+                            TPKT resPkt = new TPKT();
+                            TPDU resPdu = new TPDU();
+                            resPdu.PDUType = (byte)TPDU.TPDU_TYPES.CC;
+                            Connected = false;
+                            m_payloadFragmentData = new MemoryStream(1024);    // Stream for TPDU fragments, S7 PDU has max. 960 bytes
 
-                        // get connect confirm, if tsaps not equal a exception is thrown
-                        try
-                        {
-                            resPdu.PduCon = PDU.PduCon.HandleConnectRequest(LocalTsaps, m_ProposedMaxTPDUSize, EnableLocalTsapCheck);
-                            // Add TPDU to TPKT
-                            resPkt.SetPayload(resPdu.GetBytes());
-                            // send connect confirm
-                            TCPSend(client.client, resPkt.GetBytes());
-                            Connected = true;
-                            m_MaxTPDUSize = resPdu.PduCon.GetMaxTPDUSize();
-                        }
-                        catch {
+                            // get connect confirm, if tsaps not equal a exception is thrown
+                            try
+                            {
+                                resPdu.PduCon = PDU.PduCon.HandleConnectRequest(LocalTsaps, m_ProposedMaxTPDUSize, EnableLocalTsapCheck);
+                                // Add TPDU to TPKT
+                                resPkt.SetPayload(resPdu.GetBytes());
+                                // send connect confirm
+                                TCPSend(client.client, resPkt.GetBytes());
+                                Connected = true;
+                                m_MaxTPDUSize = resPdu.PduCon.GetMaxTPDUSize();
+                            }
+                            catch (Exception ex)
+                            {
+                                LogExt.log.Error($"ISOonTCP", ex);
+                            }
 
+                            LogExt.log.Info($"ISOonTCP, Connection Requested, Connected:{Connected}");
                         }
                         break;
                     case (byte)TPDU.TPDU_TYPES.DT:
-                        if (!Connected)
                         {
-                            Log("DT packet before state 'connected' received.");
-                            m_payloadFragmentData.SetLength(0);
-                            break;
-                        }
-                        // Handle DT TPDU fragments              
-                        if (PDU.PduData.EOT == false)
-                        {
-                            m_payloadFragmentData.Write(PDU.PduData.Payload, 0, PDU.PduData.Payload.Length);
-                        }
-                        else
-                        {
-                            if (m_payloadFragmentData.Length == 0)
+                            if (!Connected)
                             {
-                                OnReceived(client, PDU.PduData.Payload);
+                                Log("DT packet before state 'connected' received.");
+                                m_payloadFragmentData.SetLength(0);
+                                break;
+                            }
+                            // Handle DT TPDU fragments              
+                            if (PDU.PduData.EOT == false)
+                            {
+                                m_payloadFragmentData.Write(PDU.PduData.Payload, 0, PDU.PduData.Payload.Length);
                             }
                             else
                             {
-                                m_payloadFragmentData.Write(PDU.PduData.Payload, 0, PDU.PduData.Payload.Length);
-                                byte[] payload = new byte[m_payloadFragmentData.Length];
-                                payload = m_payloadFragmentData.ToArray();
-                                OnReceived(client, payload);
-                                m_payloadFragmentData.SetLength(0);
+                                if (m_payloadFragmentData.Length == 0)
+                                {
+                                    OnReceived(client, PDU.PduData.Payload);
+                                }
+                                else
+                                {
+                                    m_payloadFragmentData.Write(PDU.PduData.Payload, 0, PDU.PduData.Payload.Length);
+                                    byte[] payload = new byte[m_payloadFragmentData.Length];
+                                    payload = m_payloadFragmentData.ToArray();
+                                    OnReceived(client, payload);
+                                    m_payloadFragmentData.SetLength(0);
+                                }
                             }
                         }
                         break;

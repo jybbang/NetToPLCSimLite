@@ -20,7 +20,6 @@ using System.Windows.Forms;
 using System.Net;
 using System.Diagnostics;
 using NetToPLCSimLite;
-using log4net;
 
 namespace PlcsimS7online
 {
@@ -493,13 +492,13 @@ namespace PlcsimS7online
 
         static void Application_ThreadException(object sender, ThreadExceptionEventArgs e)
         {
-            // MessageBox.Show(e.Exception.Message, "Unhandled Thread Exception");
+            //MessageBox.Show(e.Exception.Message, "Unhandled Thread Exception");
             LogExt.log.Error("Unhandled Thread Exception", e.Exception);
         }
 
         static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
-            // MessageBox.Show((e.ExceptionObject as Exception).Message, "Unhandled UI Exception");
+            //MessageBox.Show((e.ExceptionObject as Exception).Message, "Unhandled UI Exception");
             LogExt.log.Error("Unhandled UI Exception", (e.ExceptionObject as Exception));
         }
 

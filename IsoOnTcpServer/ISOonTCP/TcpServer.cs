@@ -4,7 +4,6 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Text;
 using System.Collections;
-using log4net;
 using NetToPLCSimLite;
 
 // Basic Code of this server is taken from:
@@ -27,21 +26,24 @@ namespace TcpLib
         /// <SUMMARY>
         /// Tells you the IP Address of the remote host.
         /// </SUMMARY>
-        public EndPoint RemoteEndPoint {
+        public EndPoint RemoteEndPoint
+        {
             get { return m_conn.RemoteEndPoint; }
         }
 
         /// <SUMMARY>
         /// Returns the number of bytes waiting to be read.
         /// </SUMMARY>
-        public int AvailableData {
+        public int AvailableData
+        {
             get { return m_conn.Available; }
         }
 
         /// <SUMMARY>
         /// Tells you if the socket is connected.
         /// </SUMMARY>
-        public bool Connected {
+        public bool Connected
+        {
             get { return m_conn.Connected; }
         }
 
@@ -56,8 +58,9 @@ namespace TcpLib
                     return m_conn.Receive(buffer, offset, count, SocketFlags.None);
                 else return 0;
             }
-            catch
+            catch(Exception ex)
             {
+                LogExt.log.Error("TcpServer", ex);
                 return 0;
             }
         }
@@ -72,8 +75,9 @@ namespace TcpLib
                 m_conn.Send(buffer, offset, count, SocketFlags.None);
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                LogExt.log.Error("TcpServer", ex);
                 return false;
             }
         }
@@ -168,9 +172,9 @@ namespace TcpLib
                     {
                         Stop();
                     }
-                    catch
+                    catch (Exception ex)
                     {
-
+                        LogExt.log.Error("TcpServer", ex);
                     }
                 }
             }
@@ -217,9 +221,6 @@ namespace TcpLib
                     //Max number of connections reached.
                     conn.Shutdown(SocketShutdown.Both);
                     conn.Close();
-
-                    // modified by Ryu
-                    LogExt.log.Debug("m_connections.Count >= _maxConnections");
                 }
                 else
                 {
@@ -245,8 +246,9 @@ namespace TcpLib
         {
             ConnectionState st = state as ConnectionState;
             try { st.m_provider.OnAcceptConnection(st); }
-            catch
+            catch (Exception ex)
             {
+                LogExt.log.Error("TcpServer", ex);
                 //report error in provider... Probably to the EventLog
             }
             //Starts the ReceiveData callback loop
@@ -260,7 +262,7 @@ namespace TcpLib
                 {
                     // modified by Ryu
                     DropConnection(st);
-                    LogExt.log.Error($"AcceptConnection_Handler", ex);                                
+                    LogExt.log.Error($"AcceptConnection_Handler", ex);
                 }
             }
         }
@@ -279,8 +281,9 @@ namespace TcpLib
                     return;
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                LogExt.log.Error("TcpServer", ex);
                 DropConnection(st);
                 return;
             }
@@ -291,8 +294,9 @@ namespace TcpLib
             else
             {
                 try { st.m_provider.OnReceiveData(st); }
-                catch
+                catch (Exception ex)
                 {
+                    LogExt.log.Error("TcpServer", ex);
                     //report error in the provider
                 }
                 //Resume ReceivedData callback loop
@@ -303,8 +307,9 @@ namespace TcpLib
                         st.m_conn.BeginReceive(st.m_buffer, 0, 0, SocketFlags.None,
                           ReceivedDataReady, st);
                     }
-                    catch
+                    catch (Exception ex)
                     {
+                        LogExt.log.Error("TcpServer", ex);
                         DropConnection(st);
                     }
                 }
@@ -325,8 +330,9 @@ namespace TcpLib
                 {
                     ConnectionState st = obj as ConnectionState;
                     try { st.m_provider.OnDropConnection(st); }
-                    catch
+                    catch (Exception ex)
                     {
+                        LogExt.log.Error("TcpServer", ex);
                         //some error in the provider
                     }
                     st.m_conn.Shutdown(SocketShutdown.Both);
@@ -344,14 +350,16 @@ namespace TcpLib
             lock (this)
             {
                 try { st.m_provider.OnDropConnection(st); }
-                catch
+                catch (Exception ex)
                 {
+                    LogExt.log.Error("TcpServer", ex);
                     //some error in the provider
                 }
 
                 try { st.m_conn.Shutdown(SocketShutdown.Both); }
-                catch
+                catch (Exception ex)
                 {
+                    LogExt.log.Error("TcpServer", ex);
                     // TODO: 10.7.2014
                     // handle System.ObjectDisposedException correctly
                     // implement IDisposable
@@ -362,17 +370,22 @@ namespace TcpLib
             }
         }
 
-        public int MaxConnections {
-            get {
+        public int MaxConnections
+        {
+            get
+            {
                 return _maxConnections;
             }
-            set {
+            set
+            {
                 _maxConnections = value;
             }
         }
 
-        public int CurrentConnections {
-            get {
+        public int CurrentConnections
+        {
+            get
+            {
                 lock (this) { return m_connections.Count; }
             }
         }

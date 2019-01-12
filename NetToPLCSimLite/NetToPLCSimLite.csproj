@@ -87,7 +87,7 @@
       <Version>2.0.2</Version>
     </PackageReference>
     <PackageReference Include="Costura.Fody">
-      <Version>3.2.2</Version>
+      <Version>3.3.0</Version>
     </PackageReference>
     <PackageReference Include="Fody">
       <Version>3.3.5</Version>
@@ -105,14 +105,14 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\IsoOnTcpServer\IsoToS7online.csproj">
-      <Project>{8E6DA196-FDC8-4797-A032-C93903F9FDC5}</Project>
-      <Name>IsoToS7online</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <Content Include="Dlls\Interop.S7PROSIMLib.dll" />
     <Content Include="FodyWeavers.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\IsoOnTcpServer\IsoToS7online.csproj">
+      <Project>{cc03886b-bed4-4b34-92b1-2f5c2bd658a5}</Project>
+      <Name>IsoToS7online</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

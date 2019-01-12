@@ -1,7 +1,4 @@
-﻿using log4net;
-using ProtoBuf;
-using S7PROSIMLib;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -10,6 +7,9 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using System.Timers;
+using log4net;
+using ProtoBuf;
+using S7PROSIMLib;
 
 namespace NetToPLCSimLite.Models
 {
@@ -47,6 +47,7 @@ namespace NetToPLCSimLite.Models
         public string PlcPath { get; set; } = string.Empty;
         [ProtoMember(9)]
         public int Instance { get; set; } = -1;
+        public Action<string> ErrorHandler;
         #endregion
 
         #region Enums
@@ -90,12 +91,12 @@ namespace NetToPLCSimLite.Models
                     timer.Start();
                     log.Info($"OK, Name:{Name}, IP:{Ip}, INS:{PlcPath}");
                 }
-                log.Warn($"NG, Name:{Name}, IP:{Ip}, INS:{PlcPath}");
+                else log.Warn($"NG, Name:{Name}, IP:{Ip}, INS:{PlcPath}");
             }
             catch (Exception ex)
             {
-                Disconnect();
                 log.Error($"ERR, Name:{Name}, IP:{Ip}, INS:{PlcPath}", ex);
+                Disconnect();
             }
 
             return IsConnected;
@@ -137,8 +138,8 @@ namespace NetToPLCSimLite.Models
                     if (queue.TryDequeue(out byte[] data))
                     {
                         // INPUT, WRITE
-                        var len = data.Length - 28;
-                        if (len > 0 && data[0] == 0x32 && data[1] == 0x01 && data[10] == 0x05 && data[14] == 0x10 && data[20] == 0x81)
+                        var lenth = data.Length - 28;
+                        if (lenth > 0 && data[0] == 0x32 && data[1] == 0x01 && data[10] == 0x05 && data[14] == 0x10 && data[20] == 0x81)
                         {
                             // address
                             byte[] aa = new byte[4] { 0, data[21], data[22], data[23] };
@@ -148,39 +149,19 @@ namespace NetToPLCSimLite.Models
                             var bitpos = addr % 8;
 
                             var t_size = data[15];
+                            var len = BitConverter.ToInt16(data, 16);
+                            len = BitConverter.IsLittleEndian ? IPAddress.HostToNetworkOrder(len) : len;
+
                             if (t_size == S7COMM_TRANSPORT_SIZE_BIT)
                             {
                                 var set = data[28] == 0 ? false : true;
                                 plcsim.WriteInputPoint(bytepos, bitpos, set);
-                                log.Debug($" >> [IP:{Ip},{Instance}] I{bytepos}.{bitpos} ({set})");
                             }
                             else if (t_size == S7COMM_TRANSPORT_SIZE_BYTE)
                             {
-                                if (len == 1)
-                                {
-                                    var set = data[28];
-                                    plcsim.WriteInputPoint(bytepos, 0, set);
-                                    log.Debug($" >> [IP:{Ip}:{Instance}] IB{bytepos} ({set})");
-                                }
-                                else if (len == 2)
-                                {
-                                    var set = (UInt16)(data[28] << 8 | data[29]);
-                                    plcsim.WriteInputPoint(bytepos, 0, set);
-                                    log.Debug($" >> [IP:{Ip}:{Instance}] IW{bytepos} ({set})");
-                                }
-                                else if (len == 4)
-                                {
-                                    var set = (UInt32)(data[28] << 24 | data[29] << 16 | data[30] << 8 | data[31]);
-                                    plcsim.WriteInputPoint(bytepos, 0, set);
-                                    log.Debug($" >> [IP:{Ip}:{Instance}] ID{bytepos} ({set})");
-                                }
-                                else
-                                {
-                                    object set = new byte[len];
-                                    Array.Copy(data, 28, (byte[])set, 0, len);
-                                    plcsim.WriteInputImage(bytepos, ref set);
-                                    log.Debug($" >> [IP:{Ip}:{Instance}] I{bytepos} -> {len} BYTE");
-                                }
+                                object set = new byte[len];
+                                Array.Copy(data, 28, (byte[])set, 0, len);
+                                plcsim.WriteInputImage(bytepos, ref set);
                             }
                         }
                     }
@@ -188,8 +169,8 @@ namespace NetToPLCSimLite.Models
             }
             catch (Exception ex)
             {
-                Disconnect();
                 log.Error(nameof(DataReceived), ex);
+                Disconnect();
             }
         }
         #endregion
@@ -201,6 +182,7 @@ namespace NetToPLCSimLite.Models
             {
                 log.Error($"PROSIM ERROR({Error}), Name:{Name}, IP:{Ip}, INS:{PlcPath}");
                 Disconnect();
+                ErrorHandler?.Invoke(Ip);
             }
             catch (Exception ex)
             {
