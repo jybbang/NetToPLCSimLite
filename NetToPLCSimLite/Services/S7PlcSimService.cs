@@ -332,10 +332,14 @@ namespace NetToPLCSimLite.Services
                     try
                     {
                         item.Disconnect();
-                        s7ServerList.TryRemove(item.Ip, out IsoToS7online srv);
-                        srv?.stop();
-                        srv?.Dispose();
                         item.IsStarted = false;
+
+                        if (s7ServerList.TryRemove(item.Ip, out IsoToS7online srv))
+                        {
+                            srv?.Dispose();
+                            srv = null;
+                            GC.Collect();
+                        }
 
                         var exist = PlcSimList.FirstOrDefault(x => x.Ip == item.Ip);
                         if (exist != null)
@@ -363,11 +367,12 @@ namespace NetToPLCSimLite.Services
         {
             // Return
             var error = PlcSimList.FirstOrDefault(x => !x.IsConnected && x.Ip == ip);
-            if (error != null && s7ServerList.TryGetValue(error.Ip, out IsoToS7online srv))
+            if (error != null && s7ServerList.TryRemove(error.Ip, out IsoToS7online srv))
             {
-                srv?.stop();
                 srv?.Dispose();
                 srv = null;
+                GC.Collect();
+
                 error.IsStarted = false;
                 log.Info($"STOPPED, {error.ToString()}");
             }

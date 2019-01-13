@@ -67,7 +67,7 @@ namespace IsoOnTcp
 
         public void stop()
         {
-            m_Server.Stop();
+            m_Server?.Dispose();
         }
 
         public string Name { get { return m_Provider.m_Name; } }

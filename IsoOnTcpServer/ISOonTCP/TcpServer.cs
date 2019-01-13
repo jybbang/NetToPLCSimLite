@@ -261,7 +261,7 @@ namespace TcpLib
                 catch (Exception ex)
                 {
                     // modified by Ryu
-                    DropConnection(st);
+                    // DropConnection(st);
                     LogExt.log.Error($"AcceptConnection_Handler", ex);
                 }
             }
@@ -324,7 +324,8 @@ namespace TcpLib
             lock (this)
             {
                 m_listener?.Close();
-                m_listener = null;
+                //m_listener?.Dispose();
+                //m_listener = null;
                 //Close all active connections
                 foreach (object obj in m_connections)
                 {
@@ -335,11 +336,13 @@ namespace TcpLib
                         LogExt.log.Error("TcpServer", ex);
                         //some error in the provider
                     }
-                    DropConnection(st);
                     st.m_conn.Shutdown(SocketShutdown.Both);
                     st.m_conn.Close();
+                    //st.m_conn.Dispose();
+                    //st.m_conn = null;
                 }
                 m_connections.Clear();
+                //m_connections = null;
             }
         }
 
