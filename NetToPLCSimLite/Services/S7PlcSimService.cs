@@ -200,15 +200,16 @@ namespace NetToPLCSimLite.Services
 
         private void PipeClient_ServerMessage(NamedPipeConnection<Tuple<string, List<byte[]>>, Tuple<string, List<byte[]>>> connection, Tuple<string, List<byte[]>> message)
         {
+            log.Debug("PIPE, Received ServerMessage");
+            msgQueue.Enqueue(message.Item2);
+            if (isBusy) return;
             try
             {
-                log.Debug("PIPE, Received ServerMessage");
-                msgQueue.Enqueue(message.Item2);
-                if (isBusy) return;
                 isBusy = true;
                 List<byte[]> msg = null;
                 while (!msgQueue.IsEmpty)
                 {
+                    // 가장 최근것만 처리
                     msgQueue.TryDequeue(out msg);
                 }
                 if (msg == null) return;
