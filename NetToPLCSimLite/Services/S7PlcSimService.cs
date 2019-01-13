@@ -57,12 +57,15 @@ namespace NetToPLCSimLite.Services
         {
             try
             {
-                var sb = new StringBuilder($"{Environment.NewLine}CURRENT [PLCSIM] LIST ( {PlcSimList.Count} ):{Environment.NewLine}");
-                if (PlcSimList.Count > 0)
+                lock (PlcSimList)
                 {
-                    sb.Append(ConsoleTableBuilder.From(PlcSimList).WithFormat(ConsoleTableBuilderFormat.MarkDown).Export().ToString());
+                    var sb = new StringBuilder($"{Environment.NewLine}CURRENT [PLCSIM] LIST ( {PlcSimList.Count} ):{Environment.NewLine}");
+                    if (PlcSimList.Count > 0)
+                    {
+                        sb.Append(ConsoleTableBuilder.From(PlcSimList).WithFormat(ConsoleTableBuilderFormat.MarkDown).Export().ToString());
+                    }
+                    return sb.AppendLine().ToString();
                 }
-                return sb.AppendLine().ToString();
             }
             catch (Exception)
             {
@@ -365,19 +368,22 @@ namespace NetToPLCSimLite.Services
         private void ErrorHandler(string ip)
         {
             // Return
-            var error = PlcSimList.FirstOrDefault(x => !x.IsConnected && x.Ip == ip);
-            if (error != null && s7ServerList.TryRemove(error.Ip, out IsoToS7online srv))
+            lock (PlcSimList)
             {
-                srv?.Dispose();
+                var error = PlcSimList.FirstOrDefault(x => !x.IsConnected && x.Ip == ip);
+                if (error != null && s7ServerList.TryRemove(error.Ip, out IsoToS7online srv))
+                {
+                    srv?.Dispose();
 
-                error.IsStarted = false;
-                log.Info($"STOPPED, {error.ToString()}");
+                    error.IsStarted = false;
+                    log.Info($"STOPPED, {error.ToString()}");
+                }
+
+                var ret = PlcSimList.Select(x => x.ToProtobuf()).ToList();
+                if (ret == null) return;
+                pipeClient.PushMessage(new Tuple<string, List<byte[]>>(string.Empty, ret));
+                PlcSimList.Remove(error);
             }
-
-            var ret = PlcSimList.Select(x => x.ToProtobuf()).ToList();
-            if (ret == null) return;
-            pipeClient.PushMessage(new Tuple<string, List<byte[]>>(string.Empty, ret));
-            PlcSimList.Remove(error);
         }
         #endregion
 
