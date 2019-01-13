@@ -88,11 +88,11 @@ namespace TcpLib
         /// </SUMMARY>
         public void EndConnection()
         {
-            if (m_conn != null && m_conn.Connected)
-            {
-                m_conn.Shutdown(SocketShutdown.Both);
-                m_conn.Close();
-            }
+            //if (m_conn != null && m_conn.Connected)
+            //{
+            //    m_conn.Shutdown(SocketShutdown.Both);
+            //    m_conn.Close();
+            //}
             m_server.DropConnection(this);
         }
     }
@@ -157,11 +157,6 @@ namespace TcpLib
             ReceivedDataReady = new AsyncCallback(ReceivedDataReady_Handler);
         }
 
-        ~TcpServer()
-        {
-            Dispose(false);
-        }
-
         private void Dispose(bool disposing)
         {
             if (disposing)
@@ -174,7 +169,7 @@ namespace TcpLib
                     }
                     catch (Exception ex)
                     {
-                        LogExt.log.Error("TcpServer", ex);
+                        LogExt.log.Error("Dispose", ex);
                     }
                 }
             }
@@ -184,7 +179,6 @@ namespace TcpLib
         public void Dispose()
         {
             Dispose(true);
-            GC.SuppressFinalize(this);
         }
 
         /// <SUMMARY>
@@ -248,22 +242,13 @@ namespace TcpLib
             try { st.m_provider.OnAcceptConnection(st); }
             catch (Exception ex)
             {
-                LogExt.log.Error("TcpServer", ex);
+                LogExt.log.Error("AcceptConnection_Handler", ex);
                 //report error in provider... Probably to the EventLog
             }
             //Starts the ReceiveData callback loop
             if (st.m_conn.Connected)
             {
-                try
-                {
-                    st.m_conn.BeginReceive(st.m_buffer, 0, 0, SocketFlags.None, ReceivedDataReady, st);
-                }
-                catch (Exception ex)
-                {
-                    // modified by Ryu
-                    // DropConnection(st);
-                    LogExt.log.Error($"AcceptConnection_Handler", ex);
-                }
+                st.m_conn.BeginReceive(st.m_buffer, 0, 0, SocketFlags.None, ReceivedDataReady, st);
             }
         }
 
@@ -275,19 +260,13 @@ namespace TcpLib
             ConnectionState st = ar.AsyncState as ConnectionState;
             try
             {
-                if (st.m_conn.Available == 0)
-                {
-                    DropConnection(st);
-                    return;
-                }
+                st.m_conn.EndReceive(ar);
             }
             catch (Exception ex)
             {
-                LogExt.log.Error("TcpServer", ex);
-                DropConnection(st);
+                LogExt.log.Error("ReceivedDataReady_Handler", ex);
                 return;
             }
-            st.m_conn.EndReceive(ar);
             //Im considering the following condition as a signal that the
             //remote host droped the connection.
             if (st.m_conn.Available == 0) DropConnection(st);
@@ -296,22 +275,14 @@ namespace TcpLib
                 try { st.m_provider.OnReceiveData(st); }
                 catch (Exception ex)
                 {
-                    LogExt.log.Error("TcpServer", ex);
+                    LogExt.log.Error("ReceivedDataReady_Handler", ex);
                     //report error in the provider
                 }
                 //Resume ReceivedData callback loop
                 if (st.m_conn.Connected)
                 {
-                    try
-                    {
-                        st.m_conn.BeginReceive(st.m_buffer, 0, 0, SocketFlags.None,
-                          ReceivedDataReady, st);
-                    }
-                    catch (Exception ex)
-                    {
-                        LogExt.log.Error("TcpServer", ex);
-                        DropConnection(st);
-                    }
+                    st.m_conn.BeginReceive(st.m_buffer, 0, 0, SocketFlags.None,
+                      ReceivedDataReady, st);
                 }
             }
         }
@@ -323,9 +294,8 @@ namespace TcpLib
         {
             lock (this)
             {
-                m_listener?.Close();
-                //m_listener?.Dispose();
-                //m_listener = null;
+                m_listener.Close();
+                m_listener = null;
                 //Close all active connections
                 foreach (object obj in m_connections)
                 {
@@ -333,16 +303,13 @@ namespace TcpLib
                     try { st.m_provider.OnDropConnection(st); }
                     catch (Exception ex)
                     {
-                        LogExt.log.Error("TcpServer", ex);
+                        LogExt.log.Error("Stop", ex);
                         //some error in the provider
                     }
                     st.m_conn.Shutdown(SocketShutdown.Both);
                     st.m_conn.Close();
-                    //st.m_conn.Dispose();
-                    //st.m_conn = null;
                 }
                 m_connections.Clear();
-                //m_connections = null;
             }
         }
 
@@ -360,14 +327,7 @@ namespace TcpLib
                     //some error in the provider
                 }
 
-                try { st.m_conn.Shutdown(SocketShutdown.Both); }
-                catch (Exception ex)
-                {
-                    LogExt.log.Error("TcpServer", ex);
-                    // TODO: 10.7.2014
-                    // handle System.ObjectDisposedException correctly
-                    // implement IDisposable
-                }
+                st.m_conn.Shutdown(SocketShutdown.Both);
                 st.m_conn.Close();
                 if (m_connections.Contains(st))
                     m_connections.Remove(st);

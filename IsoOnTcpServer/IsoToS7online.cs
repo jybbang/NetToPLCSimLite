@@ -40,11 +40,6 @@ namespace IsoOnTcp
             m_enableTsapCheck = enableTsapCheck;
         }
 
-        ~IsoToS7online()
-        {
-            Dispose(false);
-        }
-
         // JYB: void -> bool
         public bool start(string name, IPAddress networkIpAdress, List<byte[]> tsaps, IPAddress plcsimIp, int plcsimRackNumber, int plcsimSlotNumber, ref string error)
         {
@@ -67,7 +62,8 @@ namespace IsoOnTcp
 
         public void stop()
         {
-            m_Server?.Dispose();
+            m_Server.Stop();
+            m_Server = null;
         }
 
         public string Name { get { return m_Provider.m_Name; } }
