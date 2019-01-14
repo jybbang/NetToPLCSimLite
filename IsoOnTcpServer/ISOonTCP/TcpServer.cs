@@ -128,7 +128,6 @@ namespace TcpLib
         public abstract void OnDropConnection(ConnectionState state);
     }
 
-
     public class TcpServer : IDisposable
     {
         private int m_port;

@@ -14,6 +14,7 @@ using log4net;
 using NamedPipeWrapper;
 using NetToPLCSimLite.Helpers;
 using NetToPLCSimLite.Models;
+using Protocols;
 
 namespace NetToPLCSimLite.Services
 {
@@ -21,12 +22,11 @@ namespace NetToPLCSimLite.Services
     {
         #region Fields
         private readonly ILog log = LogExt.log;
-        private NamedPipeClient<Tuple<string, List<byte[]>>> pipeClient;
+        private NamedPipeClient<byte[]> pipeClient;
         private bool isBusy = false;
 
         private readonly List<S7Protocol> PlcSimList = new List<S7Protocol>();
-        private readonly ConcurrentQueue<List<byte[]>> msgQueue = new ConcurrentQueue<List<byte[]>>();
-        private readonly ConcurrentDictionary<string, IsoToS7online> s7ServerList = new ConcurrentDictionary<string, IsoToS7online>();
+         private readonly ConcurrentDictionary<string, IsoToS7online> s7ServerList = new ConcurrentDictionary<string, IsoToS7online>();
         #endregion
 
         #region Properties
@@ -123,7 +123,7 @@ namespace NetToPLCSimLite.Services
             {
                 log.Info("START, Start PipeClient.");
                 if (string.IsNullOrEmpty(PipeName)) throw new ArgumentNullException(nameof(PipeName));
-                pipeClient = new NamedPipeClient<Tuple<string, List<byte[]>>>(PipeName);
+                pipeClient = new NamedPipeClient<byte[]>(PipeName);
                 pipeClient.ServerMessage += PipeClient_ServerMessage;
                 pipeClient.Disconnected += PipeClient_Disconnected;
                 pipeClient.Error += PipeClient_Error;
@@ -166,7 +166,7 @@ namespace NetToPLCSimLite.Services
             }
         }
 
-        private void PipeClient_Disconnected(NamedPipeConnection<Tuple<string, List<byte[]>>, Tuple<string, List<byte[]>>> connection)
+        private void PipeClient_Disconnected(NamedPipeConnection<byte[], byte[]> connection)
         {
             try
             {
@@ -201,34 +201,73 @@ namespace NetToPLCSimLite.Services
             log.Error(nameof(PipeClient_Error), exception);
         }
 
-        private void PipeClient_ServerMessage(NamedPipeConnection<Tuple<string, List<byte[]>>, Tuple<string, List<byte[]>>> connection, Tuple<string, List<byte[]>> message)
+        private void PipeClient_ServerMessage(NamedPipeConnection<byte[], byte[]> connection, byte[] proto)
         {
-            log.Debug("PIPE, Received ServerMessage");
-            msgQueue.Enqueue(message.Item2);
             if (isBusy) return;
             try
             {
                 isBusy = true;
-                List<byte[]> msg = null;
-                while (!msgQueue.IsEmpty)
+                var message = proto.ProtobufDeserialize<PipeProtocol>();
+                if (message == null) return;
+                switch (message.Command)
                 {
-                    // 가장 최근것만 처리
-                    msgQueue.TryDequeue(out msg);
+                    case PipeProtocol.Type.KEEPALIVE:
+                        {
+                            connection.PushMessage(
+                                new PipeProtocol
+                                {
+                                    Command = PipeProtocol.Type.KEEPALIVE_ACK,
+                                    Heartbit = message.Heartbit,
+                                }.ToProtobuf());
+                        }
+                        break;
+                    case PipeProtocol.Type.RESET_PLC:
+                        {
+                            var ret = ResetStateion(message);
+                            if (ret == null) break;
+                            connection.PushMessage(
+                                new PipeProtocol
+                                {
+                                    Command = PipeProtocol.Type.RESET_PLC_ACK,
+                                    Uid = message.Uid,
+                                    PlcList = ret,
+                                }.ToProtobuf());
+                        }
+                        break;
+                    default:
+                        break;
                 }
-                if (msg == null) return;
 
+            }
+            catch (Exception ex)
+            {
+                log.Error(nameof(PipeClient_ServerMessage), ex);
+            }
+            finally
+            {
+                isBusy = false;
+            }
+        }
+
+        private List<byte[]> ResetStateion(PipeProtocol msg)
+        {
+            try
+            {
                 log.Debug($"=== Received S7 PLCSim List ===");
                 var adding = new List<S7Protocol>();
                 var original = new List<S7Protocol>();
-                foreach (var item in msg)
+                if (msg.PlcList != null)
                 {
-                    var plc = item.ProtobufDeserialize<S7Protocol>();
-                    original.Add(plc);
+                    foreach (var item in msg.PlcList)
+                    {
+                        var plc = item.ProtobufDeserialize<S7Protocol>();
+                        original.Add(plc);
 
-                    var exist = PlcSimList.FirstOrDefault(x => x.Ip == plc.Ip);
-                    if (exist == null) adding.Add(plc);
-                    else plc.IsStarted = exist.IsStarted;
-                    log.Debug(plc.ToString());
+                        var exist = PlcSimList.FirstOrDefault(x => x.Ip == plc.Ip);
+                        if (exist == null) adding.Add(plc);
+                        else plc.IsStarted = exist.IsStarted;
+                        log.Debug(plc.ToString());
+                    }
                 }
                 log.Debug("==============================");
 
@@ -246,24 +285,21 @@ namespace NetToPLCSimLite.Services
                 if (removing.Count > 0) RemoveStation(removing);
 
                 // Return
-                var ret = original.Select(x => x.ToProtobuf()).ToList();
-                if (ret == null) return;
-                connection.PushMessage(new Tuple<string, List<byte[]>>(message.Item1 ?? string.Empty, ret));
+                return original.Select(x => x.ToProtobuf()).ToList();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                log.Error(nameof(PipeClient_ServerMessage), ex);
+                throw;
             }
             finally
             {
-                isBusy = false;
                 log.Debug($"=== Running S7 PLCSim List ===");
                 foreach (var item in PlcSimList)
                 {
                     log.Debug(item.ToString());
                 }
                 log.Debug("==============================");
-            }
+            }            
         }
 
         private void AddStation(IEnumerable<S7Protocol> adding)
@@ -381,7 +417,12 @@ namespace NetToPLCSimLite.Services
 
                 var ret = PlcSimList.Select(x => x.ToProtobuf()).ToList();
                 if (ret == null) return;
-                pipeClient.PushMessage(new Tuple<string, List<byte[]>>(string.Empty, ret));
+                pipeClient.PushMessage(
+                    new PipeProtocol
+                    {
+                        Command = PipeProtocol.Type.ERROR_PLC,
+                        PlcList = ret,
+                    }.ToProtobuf());
                 PlcSimList.Remove(error);
             }
         }
