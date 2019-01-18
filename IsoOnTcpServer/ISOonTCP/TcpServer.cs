@@ -238,16 +238,19 @@ namespace TcpLib
         private void AcceptConnection_Handler(object state)
         {
             ConnectionState st = state as ConnectionState;
-            try { st.m_provider.OnAcceptConnection(st); }
+            try {
+                st.m_provider.OnAcceptConnection(st);
+
+                //Starts the ReceiveData callback loop
+                if (st.m_conn.Connected)
+                {
+                    st.m_conn.BeginReceive(st.m_buffer, 0, 0, SocketFlags.None, ReceivedDataReady, st);
+                }
+            }
             catch (Exception ex)
             {
                 LogExt.log.Error("AcceptConnection_Handler", ex);
                 //report error in provider... Probably to the EventLog
-            }
-            //Starts the ReceiveData callback loop
-            if (st.m_conn.Connected)
-            {
-                st.m_conn.BeginReceive(st.m_buffer, 0, 0, SocketFlags.None, ReceivedDataReady, st);
             }
         }
 
@@ -271,17 +274,20 @@ namespace TcpLib
             if (st.m_conn.Available == 0) DropConnection(st);
             else
             {
-                try { st.m_provider.OnReceiveData(st); }
+                try {
+                    st.m_provider.OnReceiveData(st);
+
+                    //Resume ReceivedData callback loop
+                    if (st.m_conn.Connected)
+                    {
+                        st.m_conn.BeginReceive(st.m_buffer, 0, 0, SocketFlags.None,
+                          ReceivedDataReady, st);
+                    }
+                }
                 catch (Exception ex)
                 {
                     LogExt.log.Error("ReceivedDataReady_Handler", ex);
                     //report error in the provider
-                }
-                //Resume ReceivedData callback loop
-                if (st.m_conn.Connected)
-                {
-                    st.m_conn.BeginReceive(st.m_buffer, 0, 0, SocketFlags.None,
-                      ReceivedDataReady, st);
                 }
             }
         }
@@ -299,14 +305,16 @@ namespace TcpLib
                 foreach (object obj in m_connections)
                 {
                     ConnectionState st = obj as ConnectionState;
-                    try { st.m_provider.OnDropConnection(st); }
+                    try { st.m_provider.OnDropConnection(st);
+
+                        st.m_conn.Shutdown(SocketShutdown.Both);
+                        st.m_conn.Close();
+                    }
                     catch (Exception ex)
                     {
                         LogExt.log.Error("Stop", ex);
                         //some error in the provider
                     }
-                    st.m_conn.Shutdown(SocketShutdown.Both);
-                    st.m_conn.Close();
                 }
                 m_connections.Clear();
             }
@@ -319,17 +327,19 @@ namespace TcpLib
         {
             lock (this)
             {
-                try { st.m_provider.OnDropConnection(st); }
+                try {
+                    st.m_provider.OnDropConnection(st);
+
+                    st.m_conn.Shutdown(SocketShutdown.Both);
+                    st.m_conn.Close();
+                    if (m_connections.Contains(st))
+                        m_connections.Remove(st);
+                }
                 catch (Exception ex)
                 {
                     LogExt.log.Error("TcpServer", ex);
                     //some error in the provider
                 }
-
-                st.m_conn.Shutdown(SocketShutdown.Both);
-                st.m_conn.Close();
-                if (m_connections.Contains(st))
-                    m_connections.Remove(st);
             }
         }
 

@@ -85,8 +85,8 @@ namespace NetToPLCSimLite.Services
                 var s7svc = service.FindS7Service();
                 if (s7svc == null) throw new NullReferenceException();
 
-                var before = service.IsPortAvailable(S7Port);
-                if (!before)
+                ret = service.IsPortAvailable(S7Port);
+                if (!ret)
                 {
                     service.StopService(s7svc, SvcTimeout);
                     Thread.Sleep(100);
@@ -94,14 +94,18 @@ namespace NetToPLCSimLite.Services
                     service.StartTcpServer(S7Port);
                     Thread.Sleep(100);
 
-                    if (!service.StartService(s7svc, SvcTimeout)) return false;
+                    if (!service.StartService(s7svc, SvcTimeout))
+                    {
+                        service.StopTcpServer();
+                        return false;
+                    }
                     Thread.Sleep(100);
 
                     service.StopTcpServer();
                     Thread.Sleep(100);
-                }
 
-                ret = service.IsPortAvailable(S7Port);
+                    ret = service.IsPortAvailable(S7Port);
+                }
             }
             catch (Exception)
             {
