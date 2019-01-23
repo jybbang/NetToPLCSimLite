@@ -5,7 +5,7 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{694C1870-1C8B-4F55-88AD-2B6D9E31144C}</ProjectGuid>
-    <OutputType>Exe</OutputType>
+    <OutputType>Library</OutputType>
     <RootNamespace>NetToPLCSimLite</RootNamespace>
     <AssemblyName>NetToPLCSimLite</AssemblyName>
     <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
@@ -41,9 +41,7 @@
   <PropertyGroup>
     <GenerateManifests>false</GenerateManifests>
   </PropertyGroup>
-  <PropertyGroup>
-    <ApplicationManifest>Properties\app.manifest</ApplicationManifest>
-  </PropertyGroup>
+  <PropertyGroup />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
     <DebugSymbols>true</DebugSymbols>
     <OutputPath>bin\x86\Debug\</OutputPath>
@@ -63,6 +61,9 @@
     <ErrorReport>prompt</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <Prefer32Bit>true</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject />
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Interop.S7PROSIMLib, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
@@ -84,45 +85,26 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CONST.cs" />
-    <Compile Include="Helpers\Lib.cs" />
-    <Compile Include="Models\PipeProtocol.cs" />
-    <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Models\S7Protocol.cs" />
     <Compile Include="Services\S7PlcSimService.cs" />
     <Compile Include="Helpers\S7ServiceHelper.cs" />
-    <Compile Include="Setup.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
-    <None Include="Config.ini">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
     <None Include="Properties\app.manifest" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="BizArk.ConsoleApp">
-      <Version>4.0.0.45</Version>
-    </PackageReference>
     <PackageReference Include="ConsoleTableExt">
       <Version>2.0.2</Version>
     </PackageReference>
     <PackageReference Include="Costura.Fody">
-      <Version>3.3.0</Version>
+      <Version>3.3.1</Version>
     </PackageReference>
     <PackageReference Include="Fody">
       <Version>3.3.5</Version>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="NamedPipeWrapper">
-      <Version>1.5.0</Version>
-    </PackageReference>
-    <PackageReference Include="protobuf-net">
-      <Version>2.4.0</Version>
-    </PackageReference>
-    <PackageReference Include="sharpconfig">
-      <Version>3.2.8</Version>
     </PackageReference>
   </ItemGroup>
   <ItemGroup>

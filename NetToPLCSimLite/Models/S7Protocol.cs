@@ -8,13 +8,11 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Timers;
 using log4net;
-using ProtoBuf;
 using S7PROSIMLib;
 
 namespace NetToPLCSimLite.Models
 {
-    [ProtoContract]
-    public class S7Protocol
+    public class S7Protocol : IDisposable
     {
         #region Const
         private const byte S7COMM_TRANSPORT_SIZE_BIT = 1;
@@ -22,32 +20,22 @@ namespace NetToPLCSimLite.Models
         #endregion
 
         #region Fields
+        public Action<string> ErrorHandler;
+
         private readonly ILog log = LogExt.log;
-        private readonly S7ProSim plcsim = new S7ProSim();
+        private S7ProSim plcsim = new S7ProSim();
         private readonly Timer timer = new Timer();
-        private readonly ConcurrentQueue<byte[]> queue = new ConcurrentQueue<byte[]>();
         #endregion
 
         #region Properties
-        [ProtoMember(1)]
         public string Name { get; set; } = string.Empty;
-        [ProtoMember(2)]
         public string Ip { get; set; } = string.Empty;
-        [ProtoMember(3)]
-        public bool IsStarted { get; set; } = false;
-        [ProtoMember(4)]
         public bool IsConnected { get; set; } = false;
-        [ProtoMember(5)]
         public StationCpu Cpu { get; set; } = StationCpu.S400;
-        [ProtoMember(6)]
         public int Rack { get; set; } = 0;
-        [ProtoMember(7)]
         public int Slot { get; set; } = 3;
-        [ProtoMember(8)]
         public string PlcPath { get; set; } = string.Empty;
-        [ProtoMember(9)]
         public int Instance { get; set; } = -1;
-        public Action<string> ErrorHandler;
         #endregion
 
         #region Enums
@@ -64,7 +52,7 @@ namespace NetToPLCSimLite.Models
         #region Public Methods
         public override string ToString()
         {
-            return $"Name:{Name}, IP:{Ip}, Connected:{IsConnected}, Started:{IsStarted}, Instance:{Instance}";
+            return $"Name:{Name}, IP:{Ip}, Connected:{IsConnected}, Instance:{Instance}";
         }
 
         public bool Connect()
@@ -120,47 +108,39 @@ namespace NetToPLCSimLite.Models
             finally
             {
                 IsConnected = false;
-                IsStarted = false;
             }
         }
 
-        public void DataReceived(byte[] received)
+        public void DataReceived(byte[] data)
         {
+            if (!IsConnected || data == null) return;
             try
             {
-                if (!IsConnected) return;
-                queue.Enqueue(received);
-                while (!queue.IsEmpty)
+                // INPUT, WRITE
+                var lenth = data.Length - 28;
+                if (lenth > 0 && data[0] == 0x32 && data[1] == 0x01 && data[10] == 0x05 && data[14] == 0x10 && data[20] == 0x81)
                 {
-                    if (queue.TryDequeue(out byte[] data))
+                    // address
+                    byte[] aa = new byte[4] { 0, data[21], data[22], data[23] };
+                    var addr = BitConverter.ToInt32(aa, 0);
+                    addr = BitConverter.IsLittleEndian ? IPAddress.HostToNetworkOrder(addr) : addr;
+                    var bytepos = addr / 8;
+                    var bitpos = addr % 8;
+
+                    var t_size = data[15];
+                    var len = BitConverter.ToInt16(data, 16);
+                    len = BitConverter.IsLittleEndian ? IPAddress.HostToNetworkOrder(len) : len;
+
+                    if (t_size == S7COMM_TRANSPORT_SIZE_BIT)
                     {
-                        // INPUT, WRITE
-                        var lenth = data.Length - 28;
-                        if (lenth > 0 && data[0] == 0x32 && data[1] == 0x01 && data[10] == 0x05 && data[14] == 0x10 && data[20] == 0x81)
-                        {
-                            // address
-                            byte[] aa = new byte[4] { 0, data[21], data[22], data[23] };
-                            var addr = BitConverter.ToInt32(aa, 0);
-                            addr = BitConverter.IsLittleEndian ? IPAddress.HostToNetworkOrder(addr) : addr;
-                            var bytepos = addr / 8;
-                            var bitpos = addr % 8;
-
-                            var t_size = data[15];
-                            var len = BitConverter.ToInt16(data, 16);
-                            len = BitConverter.IsLittleEndian ? IPAddress.HostToNetworkOrder(len) : len;
-
-                            if (t_size == S7COMM_TRANSPORT_SIZE_BIT)
-                            {
-                                var set = data[28] == 0 ? false : true;
-                                plcsim.WriteInputPoint(bytepos, bitpos, set);
-                            }
-                            else if (t_size == S7COMM_TRANSPORT_SIZE_BYTE)
-                            {
-                                object set = new byte[len];
-                                Array.Copy(data, 28, (byte[])set, 0, len);
-                                plcsim.WriteInputImage(bytepos, ref set);
-                            }
-                        }
+                        var set = data[28] == 0 ? false : true;
+                        plcsim.WriteInputPoint(bytepos, bitpos, set);
+                    }
+                    else if (t_size == S7COMM_TRANSPORT_SIZE_BYTE)
+                    {
+                        object set = new byte[len];
+                        Array.Copy(data, 28, (byte[])set, 0, len);
+                        plcsim.WriteInputImage(bytepos, ref set);
                     }
                 }
             }
@@ -202,6 +182,43 @@ namespace NetToPLCSimLite.Models
             {
                 log.Error(nameof(Timer_Elapsed), ex);
             }
+        }
+        #endregion
+
+        #region IDisposable Support
+        private bool disposedValue = false; // 중복 호출을 검색하려면
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    // TODO: 관리되는 상태(관리되는 개체)를 삭제합니다.
+                    if (IsConnected) Disconnect();
+                    plcsim = null;
+                }
+
+                // TODO: 관리되지 않는 리소스(관리되지 않는 개체)를 해제하고 아래의 종료자를 재정의합니다.
+                // TODO: 큰 필드를 null로 설정합니다.
+
+                disposedValue = true;
+            }
+        }
+
+        // TODO: 위의 Dispose(bool disposing)에 관리되지 않는 리소스를 해제하는 코드가 포함되어 있는 경우에만 종료자를 재정의합니다.
+        // ~S7Protocol() {
+        //   // 이 코드를 변경하지 마세요. 위의 Dispose(bool disposing)에 정리 코드를 입력하세요.
+        //   Dispose(false);
+        // }
+
+        // 삭제 가능한 패턴을 올바르게 구현하기 위해 추가된 코드입니다.
+        public void Dispose()
+        {
+            // 이 코드를 변경하지 마세요. 위의 Dispose(bool disposing)에 정리 코드를 입력하세요.
+            Dispose(true);
+            // TODO: 위의 종료자가 재정의된 경우 다음 코드 줄의 주석 처리를 제거합니다.
+            // GC.SuppressFinalize(this);
         }
         #endregion
     }

@@ -11,10 +11,8 @@ using System.Threading.Tasks;
 using ConsoleTableExt;
 using IsoOnTcp;
 using log4net;
-using NamedPipeWrapper;
 using NetToPLCSimLite.Helpers;
 using NetToPLCSimLite.Models;
-using Protocols;
 
 namespace NetToPLCSimLite.Services
 {
@@ -22,35 +20,117 @@ namespace NetToPLCSimLite.Services
     {
         #region Fields
         private readonly ILog log = LogExt.log;
-        private NamedPipeClient<byte[]> pipeClient;
-        private bool isBusy = false;
-
         private readonly List<S7Protocol> PlcSimList = new List<S7Protocol>();
-         private readonly ConcurrentDictionary<string, IsoToS7online> s7ServerList = new ConcurrentDictionary<string, IsoToS7online>();
-        #endregion
-
-        #region Properties
-        public int S7Port { get; set; } = CONST.S7_PORT;
-        public int SvcTimeout { get; set; } = CONST.SVC_TIMEOUT;
-        public string PipeName { get; set; }
-        public string PipeServerName { get; set; }
-        public string PipeServerPath { get; set; }
+        private readonly ConcurrentDictionary<string, IsoToS7online> s7ServerList = new ConcurrentDictionary<string, IsoToS7online>();
         #endregion
 
         #region Public Methods
-        public void Run()
+        public bool GetS7Port()
+        {
+            var ret = false;
+            try
+            {
+                log.Info($"START, Get S7 Port.");
+                var service = new S7ServiceHelper();
+                var s7svc = service.FindS7Service();
+                if (s7svc == null) throw new NullReferenceException();
+
+                ret = service.IsPortAvailable(CONST.S7_PORT);
+                if (!ret)
+                {
+                    service.StopService(s7svc, CONST.SVC_TIMEOUT);
+                    Thread.Sleep(100);
+
+                    service.StartTcpServer(CONST.S7_PORT);
+                    Thread.Sleep(100);
+
+                    if (!service.StartService(s7svc, CONST.SVC_TIMEOUT))
+                    {
+                        service.StopTcpServer();
+                        return false;
+                    }
+                    Thread.Sleep(100);
+
+                    service.StopTcpServer();
+                    Thread.Sleep(100);
+
+                    ret = service.IsPortAvailable(CONST.S7_PORT);
+                }
+            }
+            catch (Exception)
+            {
+                ret = false;
+                throw;
+            }
+            finally
+            {
+                if (ret) log.Info($"OK, Get S7 Port.");
+                else log.Warn($"NG, Get S7 Port.");
+            }
+            return ret;
+        }
+
+        public List<S7Protocol> SetStation(IReadOnlyCollection<S7Protocol> list)
         {
             try
             {
-                log.Info("START, Running NetToPLCSimLite.");
-                if (!GetS7Port()) throw new InvalidOperationException();
-                StartPipe();
-                log.Info("FINISH, Running NetToPLCSimLite.");
+                log.Debug($"=== Received S7 PLCSim List ===");
+                var adding = new List<S7Protocol>();
+                var original = new List<S7Protocol>();
+                if (list != null)
+                {
+                    foreach (var plc in list)
+                    {
+                        original.Add(plc);
+                        var exist = PlcSimList.FirstOrDefault(x => x.Ip == plc.Ip);
+                        if (exist == null) adding.Add(plc);
+                        log.Debug(plc.ToString());
+                    }
+                }
+                log.Debug("==============================");
+
+                log.Debug($"=== Before S7 PLCSim List ===");
+                var removing = new List<S7Protocol>();
+                foreach (var plc in PlcSimList)
+                {
+                    var exist = original.FirstOrDefault(x => x.Ip == plc.Ip);
+                    if (exist == null) removing.Add(plc);
+                    log.Debug(plc.ToString());
+                }
+                log.Debug("==============================");
+
+                if (adding.Count > 0)
+                {
+                    var ret = AddStation(adding);
+                    PlcSimList.AddRange(ret);
+                }
+
+                if (removing.Count > 0)
+                {
+                    var ret = RemoveStation(removing);
+                    for (int i = 0; i < ret.Count; i++)
+                    {
+                        var item = ret[i];
+                        PlcSimList.Remove(item);
+                        item = null;
+                    }
+                }
             }
             catch (Exception)
             {
                 throw;
             }
+            finally
+            {
+                log.Debug($"=== After S7 PLCSim List ===");
+                foreach (var item in PlcSimList)
+                {
+                    log.Debug(item.ToString());
+                }
+                log.Debug("==============================");
+            }
+
+            return PlcSimList;
         }
 
         public override string ToString()
@@ -75,239 +155,10 @@ namespace NetToPLCSimLite.Services
         #endregion
 
         #region Private Methods
-        private bool GetS7Port()
+        private List<S7Protocol> AddStation(IReadOnlyCollection<S7Protocol> adding)
         {
-            var ret = false;
-            try
-            {
-                log.Info($"START, Get S7 Port.");
-                var service = new S7ServiceHelper();
-                var s7svc = service.FindS7Service();
-                if (s7svc == null) throw new NullReferenceException();
-
-                ret = service.IsPortAvailable(S7Port);
-                if (!ret)
-                {
-                    service.StopService(s7svc, SvcTimeout);
-                    Thread.Sleep(100);
-
-                    service.StartTcpServer(S7Port);
-                    Thread.Sleep(100);
-
-                    if (!service.StartService(s7svc, SvcTimeout))
-                    {
-                        service.StopTcpServer();
-                        return false;
-                    }
-                    Thread.Sleep(100);
-
-                    service.StopTcpServer();
-                    Thread.Sleep(100);
-
-                    ret = service.IsPortAvailable(S7Port);
-                }
-            }
-            catch (Exception)
-            {
-                ret = false;
-                throw;
-            }
-            finally
-            {
-                if (ret) log.Info($"OK, Get S7 Port.");
-                else log.Warn($"NG, Get S7 Port.");
-            }
-            return ret;
-        }
-
-        private void StartPipe()
-        {
-            var ret = false;
-            try
-            {
-                log.Info("START, Start PipeClient.");
-                if (string.IsNullOrEmpty(PipeName)) throw new ArgumentNullException(nameof(PipeName));
-                pipeClient = new NamedPipeClient<byte[]>(PipeName);
-                pipeClient.ServerMessage += PipeClient_ServerMessage;
-                pipeClient.Disconnected += PipeClient_Disconnected;
-                pipeClient.Error += PipeClient_Error;
-                pipeClient.Start();
-                ret = true;
-            }
-            catch (Exception)
-            {
-                ret = false;
-                throw;
-            }
-            finally
-            {
-                if (ret) log.Info("OK, Start PipeClient.");
-                else log.Warn("NG, Start PipeClient.");
-            }
-        }
-
-        private void StopPipe()
-        {
-            var ret = false;
-            try
-            {
-                log.Info("START, Stop PipeClient.");
-                if (pipeClient == null) return;
-                pipeClient.ServerMessage -= PipeClient_ServerMessage;
-                pipeClient.Disconnected -= PipeClient_Disconnected;
-                pipeClient.Error -= PipeClient_Error;
-                pipeClient.Stop();
-            }
-            catch (Exception)
-            {
-                ret = false;
-                throw;
-            }
-            finally
-            {
-                if (ret) log.Info("OK, Stop PipeClient.");
-                else log.Warn("NG, Stop PipeClient.");
-            }
-        }
-
-        private void PipeClient_Disconnected(NamedPipeConnection<byte[], byte[]> connection)
-        {
-            try
-            {
-                log.Warn("PIPE, PipeServer Disconnected.");
-                if (string.IsNullOrEmpty(PipeServerName)) return;
-                var procs = Process.GetProcessesByName(PipeServerName);
-                if (procs != null)
-                    foreach (var proc in procs)
-                    {
-                        proc.Kill();
-                    }
-
-                if (!string.IsNullOrEmpty(PipeServerPath) || File.Exists(PipeServerPath))
-                {
-                    log.Warn("PIPE, PipeServer Program restart.");
-                    Process.Start(PipeServerPath);
-                }
-            }
-            catch (Exception ex)
-            {
-                log.Error(nameof(PipeClient_Disconnected), ex);
-            }
-            finally
-            {
-                log.Warn("Exit Program due to PipeServer.");
-                Environment.Exit(-1);
-            }
-        }
-
-        private void PipeClient_Error(Exception exception)
-        {
-            log.Error(nameof(PipeClient_Error), exception);
-        }
-
-        private void PipeClient_ServerMessage(NamedPipeConnection<byte[], byte[]> connection, byte[] proto)
-        {
-            if (isBusy) return;
-            try
-            {
-                isBusy = true;
-                var message = proto.ProtobufDeserialize<PipeProtocol>();
-                if (message == null) return;
-                switch (message.Command)
-                {
-                    case PipeProtocol.Type.KEEPALIVE:
-                        {
-                            connection.PushMessage(
-                                new PipeProtocol
-                                {
-                                    Command = PipeProtocol.Type.KEEPALIVE_ACK,
-                                    Heartbit = message.Heartbit,
-                                }.ToProtobuf());
-                        }
-                        break;
-                    case PipeProtocol.Type.RESET_PLC:
-                        {
-                            var ret = ResetStateion(message);
-                            if (ret == null) break;
-                            connection.PushMessage(
-                                new PipeProtocol
-                                {
-                                    Command = PipeProtocol.Type.RESET_PLC_ACK,
-                                    Uid = message.Uid,
-                                    PlcList = ret,
-                                }.ToProtobuf());
-                        }
-                        break;
-                    default:
-                        break;
-                }
-
-            }
-            catch (Exception ex)
-            {
-                log.Error(nameof(PipeClient_ServerMessage), ex);
-            }
-            finally
-            {
-                isBusy = false;
-            }
-        }
-
-        private List<byte[]> ResetStateion(PipeProtocol msg)
-        {
-            try
-            {
-                log.Debug($"=== Received S7 PLCSim List ===");
-                var adding = new List<S7Protocol>();
-                var original = new List<S7Protocol>();
-                if (msg.PlcList != null)
-                {
-                    foreach (var item in msg.PlcList)
-                    {
-                        var plc = item.ProtobufDeserialize<S7Protocol>();
-                        original.Add(plc);
-
-                        var exist = PlcSimList.FirstOrDefault(x => x.Ip == plc.Ip);
-                        if (exist == null) adding.Add(plc);
-                        else plc.IsStarted = exist.IsStarted;
-                        log.Debug(plc.ToString());
-                    }
-                }
-                log.Debug("==============================");
-
-                log.Debug($"=== Current S7 PLCSim List ===");
-                var removing = new List<S7Protocol>();
-                foreach (var plc in PlcSimList)
-                {
-                    var exist = original.FirstOrDefault(x => x.Ip == plc.Ip);
-                    if (exist == null) removing.Add(plc);
-                    log.Debug(plc.ToString());
-                }
-                log.Debug("==============================");
-
-                if (adding.Count > 0) AddStation(adding);
-                if (removing.Count > 0) RemoveStation(removing);
-
-                // Return
-                return original.Select(x => x.ToProtobuf()).ToList();
-            }
-            catch (Exception)
-            {
-                throw;
-            }
-            finally
-            {
-                log.Debug($"=== Running S7 PLCSim List ===");
-                foreach (var item in PlcSimList)
-                {
-                    log.Debug(item.ToString());
-                }
-                log.Debug("==============================");
-            }            
-        }
-
-        private void AddStation(IEnumerable<S7Protocol> adding)
-        {
+            var ret = new List<S7Protocol>();
+            if (adding == null) return ret;
             try
             {
                 log.Info($"=== Adding S7 PLCSim List ===");
@@ -325,8 +176,8 @@ namespace NetToPLCSimLite.Services
                         srv = new IsoToS7online(false);
                         var ip = IPAddress.Parse(item.Ip);
                         var err = string.Empty;
-                        var ret = srv.start(item.Name, ip, tsaps, ip, item.Rack, item.Slot, ref err);
-                        if (ret)
+                        var srvStart = srv.start(item.Name, ip, tsaps, ip, item.Rack, item.Slot, ref err);
+                        if (srvStart)
                         {
                             var conn = item.Connect();
                             if (conn)
@@ -334,16 +185,16 @@ namespace NetToPLCSimLite.Services
                                 srv.DataReceived = item.DataReceived;
                                 s7ServerList.TryAdd(item.Ip, srv);
 
-                                PlcSimList.Add(item);
-                                item.IsStarted = true;
+                                ret.Add(item);
                                 item.ErrorHandler = new Action<string>((ipp) => ErrorHandler(ipp));
 
                                 log.Info($"OK, {item.ToString()}");
                             }
                             else
                             {
-                                srv.stop();
-                                item.IsStarted = false;
+                                srv?.Dispose();
+                                srv = null;
+                                item?.Dispose();
                                 log.Warn($"NG, {item.ToString()}");
                             }
                         }
@@ -352,10 +203,10 @@ namespace NetToPLCSimLite.Services
                     }
                     catch (Exception ex)
                     {
+                        srv?.Dispose();
+                        srv = null;
+                        item?.Dispose();
                         log.Error($"ERR, {item.ToString()}", ex);
-                        srv?.stop();
-                        item.Disconnect();
-                        item.IsStarted = false;
                     }
                 }
                 log.Debug("==============================");
@@ -364,10 +215,13 @@ namespace NetToPLCSimLite.Services
             {
                 throw;
             }
+            return ret;
         }
 
-        private void RemoveStation(IEnumerable<S7Protocol> removing)
+        private List<S7Protocol> RemoveStation(IReadOnlyCollection<S7Protocol> removing)
         {
+            var ret = new List<S7Protocol>();
+            if (removing == null) return ret;
             try
             {
                 log.Info($"=== Removing S7 PLCSim List ===");
@@ -375,22 +229,15 @@ namespace NetToPLCSimLite.Services
                 {
                     try
                     {
-                        item.Disconnect();
-                        item.IsStarted = false;
-
                         if (s7ServerList.TryRemove(item.Ip, out IsoToS7online srv))
                         {
                             srv?.Dispose();
+                            srv = null;
                         }
+                        item?.Dispose();
 
-                        var exist = PlcSimList.FirstOrDefault(x => x.Ip == item.Ip);
-                        if (exist != null)
-                        {
-                            PlcSimList.Remove(exist);
-                            log.Info($"OK, {item.ToString()}");
-                        }
-                        else
-                            log.Warn($"NG, {item.ToString()}");
+                        ret.Add(item);
+                        log.Info($"OK, {item.ToString()}");
                     }
                     catch (Exception ex)
                     {
@@ -403,31 +250,25 @@ namespace NetToPLCSimLite.Services
             {
                 throw;
             }
+            return ret;
         }
 
         private void ErrorHandler(string ip)
         {
             // Return
+            if (string.IsNullOrEmpty(ip)) return;
             lock (PlcSimList)
             {
                 var error = PlcSimList.FirstOrDefault(x => !x.IsConnected && x.Ip == ip);
                 if (error != null && s7ServerList.TryRemove(error.Ip, out IsoToS7online srv))
                 {
                     srv?.Dispose();
-
-                    error.IsStarted = false;
-                    log.Info($"STOPPED, {error.ToString()}");
+                    srv = null;
                 }
-
-                var ret = PlcSimList.Select(x => x.ToProtobuf()).ToList();
-                if (ret == null) return;
-                pipeClient.PushMessage(
-                    new PipeProtocol
-                    {
-                        Command = PipeProtocol.Type.ERROR_PLC,
-                        PlcList = ret,
-                    }.ToProtobuf());
+                error?.Dispose();
                 PlcSimList.Remove(error);
+                error = null;
+                log.Info($"STOPPED, {error.ToString()}");
             }
         }
         #endregion
@@ -442,8 +283,7 @@ namespace NetToPLCSimLite.Services
                 if (disposing)
                 {
                     // TODO: 관리되는 상태(관리되는 개체)를 삭제합니다.
-                    RemoveStation(PlcSimList);
-                    StopPipe();
+                    SetStation(null);
                 }
 
                 // TODO: 관리되지 않는 리소스(관리되지 않는 개체)를 해제하고 아래의 종료자를 재정의합니다.

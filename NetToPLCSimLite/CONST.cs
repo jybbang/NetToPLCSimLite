@@ -8,8 +8,6 @@ namespace NetToPLCSimLite
 {
     public static class CONST
     {
-        public const string PIPE_NAME = nameof(NetToPLCSimLite);
-        public const string CONFIG_FILE = "Config.ini";
         public const int S7_PORT = 102;
         public const int SVC_TIMEOUT = 20000;
     }

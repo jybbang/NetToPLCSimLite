@@ -38,7 +38,7 @@ namespace NetToPLCSimLite
             {
                 Name = "LogFileAppender",
                 Layout = pattern,
-                File = @"logs/log.txt",
+                File = @"logs/netToPlcLog.txt",
                 AppendToFile = true,
                 RollingStyle = log4net.Appender.RollingFileAppender.RollingMode.Date,
                 DatePattern = "_yyyy-MM-dd",
