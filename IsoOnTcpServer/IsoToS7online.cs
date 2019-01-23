@@ -17,7 +17,6 @@ using System.Diagnostics;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Threading;
-using NetToPLCSimLite;
 using PlcsimS7online;
 using TcpLib;
 
@@ -56,7 +55,6 @@ namespace IsoOnTcp
             m_Server = new TcpServer(m_Provider, 102);
             // m_Server.Start(m_NetworkIpAdress);
             var ret = m_Server.Start(m_NetworkIpAdress, ref error);
-            LogExt.log.Debug("isoToS7online, Start.");
             return ret;
         }
 
@@ -79,9 +77,8 @@ namespace IsoOnTcp
                     {
                         stop();
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
-                        LogExt.log.Error("TcpServer", ex);
                     }
                 }
             }
@@ -209,7 +206,6 @@ namespace IsoOnTcp
 
         public void IsoLog(string message)
         {
-            LogExt.log.Debug($"ISO: {message}");
         }
 
         public void TCPSend(ConnectionState state, byte[] data)
@@ -227,9 +223,8 @@ namespace IsoOnTcp
             {
                 ISOsrv.Send(state, data);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                LogExt.log.Error("TcpServer", ex);
                 client.EndConnection();
             }
         }
@@ -295,9 +290,8 @@ namespace IsoOnTcp
                             client.EndConnection();
                         }
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
-                        LogExt.log.Error("TcpServer", ex);
                         client.EndConnection();
                     }
                 }
@@ -336,9 +330,8 @@ namespace IsoOnTcp
                 SendMessage(m_PlcS7onlineMsgPump_Handle, PlcS7onlineMsgPump.WM_M_CONNECTPLCSIM, IntPtr.Zero, IntPtr.Zero);
                 m_autoEvent_ConnectPlcsim.WaitOne();        // Wait until a connect success or connect error was received
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                LogExt.log.Error("TcpServer", ex);
                 return false;
             }
             return m_ConnectPlcsimSuccess;

@@ -171,6 +171,11 @@ namespace NetToPLCSimLite.Models
         {
             try
             {
+                if (plcsim == null)
+                {
+                    timer.Elapsed -= Timer_Elapsed;
+                    timer.Stop();
+                }
                 var st = plcsim.GetState() == "RUN_P" ? true : false;
                 if (!st)
                 {

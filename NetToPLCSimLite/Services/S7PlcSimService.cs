@@ -19,6 +19,8 @@ namespace NetToPLCSimLite.Services
     public class S7PlcSimService : IDisposable
     {
         #region Fields
+        public event EventHandler<string> PlcSimErr;
+
         private readonly ILog log = LogExt.log;
         private readonly List<S7Protocol> PlcSimList = new List<S7Protocol>();
         private readonly ConcurrentDictionary<string, IsoToS7online> s7ServerList = new ConcurrentDictionary<string, IsoToS7online>();
@@ -267,8 +269,9 @@ namespace NetToPLCSimLite.Services
                 }
                 error?.Dispose();
                 PlcSimList.Remove(error);
-                error = null;
                 log.Info($"STOPPED, {error.ToString()}");
+                PlcSimErr?.Invoke(this, error.Ip);
+                error = null;
             }
         }
         #endregion

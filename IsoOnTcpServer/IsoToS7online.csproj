@@ -41,8 +41,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="ByteConvert.cs" />
-    <Compile Include="CONST.cs" />
-    <Compile Include="LogExt.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="HexDump.cs" />
     <Compile Include="ISOonTCP\ISOonTCP.cs" />
@@ -70,11 +68,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="log4net">
-      <Version>2.0.8</Version>
-    </PackageReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

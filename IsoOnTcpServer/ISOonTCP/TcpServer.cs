@@ -4,7 +4,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
-using NetToPLCSimLite;
 
 // Basic Code of this server is taken from:
 // http://www.codeproject.com/KB/IP/BasicTcpServer.aspx
@@ -58,9 +57,8 @@ namespace TcpLib
                     return m_conn.Receive(buffer, offset, count, SocketFlags.None);
                 else return 0;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                LogExt.log.Error("TcpServer", ex);
                 return 0;
             }
         }
@@ -75,9 +73,8 @@ namespace TcpLib
                 m_conn.Send(buffer, offset, count, SocketFlags.None);
                 return true;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                LogExt.log.Error("TcpServer", ex);
                 return false;
             }
         }
@@ -166,9 +163,8 @@ namespace TcpLib
                     {
                         Stop();
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
-                        LogExt.log.Error("Dispose", ex);
                     }
                 }
             }
@@ -247,9 +243,8 @@ namespace TcpLib
                     st.m_conn.BeginReceive(st.m_buffer, 0, 0, SocketFlags.None, ReceivedDataReady, st);
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                LogExt.log.Error("AcceptConnection_Handler", ex);
                 //report error in provider... Probably to the EventLog
             }
         }
@@ -264,9 +259,8 @@ namespace TcpLib
             {
                 st.m_conn.EndReceive(ar);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                LogExt.log.Error("ReceivedDataReady_Handler", ex);
                 return;
             }
             //Im considering the following condition as a signal that the
@@ -284,9 +278,8 @@ namespace TcpLib
                           ReceivedDataReady, st);
                     }
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
-                    LogExt.log.Error("ReceivedDataReady_Handler", ex);
                     //report error in the provider
                 }
             }
@@ -310,9 +303,8 @@ namespace TcpLib
                         st.m_conn.Shutdown(SocketShutdown.Both);
                         st.m_conn.Close();
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
-                        LogExt.log.Error("Stop", ex);
                         //some error in the provider
                     }
                 }
@@ -335,9 +327,8 @@ namespace TcpLib
                     if (m_connections.Contains(st))
                         m_connections.Remove(st);
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
-                    LogExt.log.Error("TcpServer", ex);
                     //some error in the provider
                 }
             }

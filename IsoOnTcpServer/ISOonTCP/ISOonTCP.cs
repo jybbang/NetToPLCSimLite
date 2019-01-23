@@ -19,7 +19,6 @@ using System.Text;
 using System.IO;
 using HexDumping;
 using TcpLib;
-using NetToPLCSimLite;
 
 namespace IsoOnTcp
 {
@@ -92,12 +91,9 @@ namespace IsoOnTcp
                                 Connected = true;
                                 m_MaxTPDUSize = resPdu.PduCon.GetMaxTPDUSize();
                             }
-                            catch (Exception ex)
+                            catch (Exception)
                             {
-                                LogExt.log.Error($"ISOonTCP", ex);
                             }
-
-                            LogExt.log.Info($"ISOonTCP, Connection Requested, Connected:{Connected}");
                         }
                         break;
                     case (byte)TPDU.TPDU_TYPES.DT:
