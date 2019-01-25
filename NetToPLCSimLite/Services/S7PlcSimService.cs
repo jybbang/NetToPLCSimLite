@@ -22,8 +22,11 @@ namespace NetToPLCSimLite.Services
         public event EventHandler<string> PlcSimErr;
 
         private readonly ILog log = LogExt.log;
-        private readonly List<S7Protocol> PlcSimList = new List<S7Protocol>();
         private readonly ConcurrentDictionary<string, IsoToS7online> s7ServerList = new ConcurrentDictionary<string, IsoToS7online>();
+        #endregion
+
+        #region Properties
+        public List<S7Protocol> PlcSimList { get; } = new List<S7Protocol>();
         #endregion
 
         #region Public Methods

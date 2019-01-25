@@ -171,20 +171,17 @@ namespace NetToPLCSimLite.Models
         {
             try
             {
-                if (plcsim == null)
-                {
-                    timer.Elapsed -= Timer_Elapsed;
-                    timer.Stop();
-                }
-                var st = plcsim.GetState() == "RUN_P" ? true : false;
+                var st = plcsim?.GetState() == "RUN_P" ? true : false;
                 if (!st)
                 {
-                    plcsim.SetState("RUN_P");
-                    plcsim.SetScanMode(ScanModeConstants.ContinuousScan);
+                    plcsim?.SetState("RUN_P");
+                    plcsim?.SetScanMode(ScanModeConstants.ContinuousScan);
                 }
             }
             catch (Exception ex)
             {
+                timer.Elapsed -= Timer_Elapsed;
+                timer.Stop();
                 log.Error(nameof(Timer_Elapsed), ex);
             }
         }
@@ -200,7 +197,7 @@ namespace NetToPLCSimLite.Models
                 if (disposing)
                 {
                     // TODO: 관리되는 상태(관리되는 개체)를 삭제합니다.
-                    if (IsConnected) Disconnect();
+                    Disconnect();
                     plcsim = null;
                 }
 

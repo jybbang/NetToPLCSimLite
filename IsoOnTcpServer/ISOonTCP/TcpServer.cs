@@ -25,24 +25,21 @@ namespace TcpLib
         /// <SUMMARY>
         /// Tells you the IP Address of the remote host.
         /// </SUMMARY>
-        public EndPoint RemoteEndPoint
-        {
+        public EndPoint RemoteEndPoint {
             get { return m_conn.RemoteEndPoint; }
         }
 
         /// <SUMMARY>
         /// Returns the number of bytes waiting to be read.
         /// </SUMMARY>
-        public int AvailableData
-        {
+        public int AvailableData {
             get { return m_conn.Available; }
         }
 
         /// <SUMMARY>
         /// Tells you if the socket is connected.
         /// </SUMMARY>
-        public bool Connected
-        {
+        public bool Connected {
             get { return m_conn.Connected; }
         }
 
@@ -53,7 +50,7 @@ namespace TcpLib
         {
             try
             {
-                if (m_conn.Available > 0)
+                if (m_conn?.Available > 0)
                     return m_conn.Receive(buffer, offset, count, SocketFlags.None);
                 else return 0;
             }
@@ -70,7 +67,7 @@ namespace TcpLib
         {
             try
             {
-                m_conn.Send(buffer, offset, count, SocketFlags.None);
+                m_conn?.Send(buffer, offset, count, SocketFlags.None);
                 return true;
             }
             catch (Exception)
@@ -184,6 +181,7 @@ namespace TcpLib
         {
             try
             {
+                if (m_listener == null) return false;
                 m_listener.Bind(new IPEndPoint(ip, m_port));
                 m_listener.Listen(100);
                 m_listener.BeginAccept(ConnectionReady, null);
@@ -209,7 +207,8 @@ namespace TcpLib
                 {
                     //Max number of connections reached.
                     conn.Shutdown(SocketShutdown.Both);
-                    conn.Close();
+                    conn.Dispose();
+                    conn = null;
                 }
                 else
                 {
@@ -234,10 +233,12 @@ namespace TcpLib
         private void AcceptConnection_Handler(object state)
         {
             ConnectionState st = state as ConnectionState;
-            try {
+            try
+            {
                 st.m_provider.OnAcceptConnection(st);
 
                 //Starts the ReceiveData callback loop
+                if (st.m_conn == null) return;
                 if (st.m_conn.Connected)
                 {
                     st.m_conn.BeginReceive(st.m_buffer, 0, 0, SocketFlags.None, ReceivedDataReady, st);
@@ -255,6 +256,8 @@ namespace TcpLib
         private void ReceivedDataReady_Handler(IAsyncResult ar)
         {
             ConnectionState st = ar.AsyncState as ConnectionState;
+            if (st.m_conn == null) return;
+
             try
             {
                 st.m_conn.EndReceive(ar);
@@ -268,7 +271,8 @@ namespace TcpLib
             if (st.m_conn.Available == 0) DropConnection(st);
             else
             {
-                try {
+                try
+                {
                     st.m_provider.OnReceiveData(st);
 
                     //Resume ReceivedData callback loop
@@ -292,16 +296,22 @@ namespace TcpLib
         {
             lock (this)
             {
-                m_listener.Close();
+                if (m_listener == null) return;
+                m_listener.Dispose();
                 m_listener = null;
                 //Close all active connections
                 foreach (object obj in m_connections)
                 {
                     ConnectionState st = obj as ConnectionState;
-                    try { st.m_provider.OnDropConnection(st);
+                    try
+                    {
+                        st.m_provider.OnDropConnection(st);
 
+                        if (st.m_conn == null) continue;
                         st.m_conn.Shutdown(SocketShutdown.Both);
-                        st.m_conn.Close();
+                        st.m_conn.Dispose();
+                        st.m_conn = null;
+                        // st.m_conn.Close();
                     }
                     catch (Exception)
                     {
@@ -319,13 +329,16 @@ namespace TcpLib
         {
             lock (this)
             {
-                try {
+                try
+                {
                     st.m_provider.OnDropConnection(st);
-
-                    st.m_conn.Shutdown(SocketShutdown.Both);
-                    st.m_conn.Close();
                     if (m_connections.Contains(st))
                         m_connections.Remove(st);
+
+                    if (st.m_conn == null) return;
+                    st.m_conn.Shutdown(SocketShutdown.Both);
+                    st.m_conn.Dispose();
+                    st.m_conn = null;
                 }
                 catch (Exception)
                 {
@@ -334,22 +347,17 @@ namespace TcpLib
             }
         }
 
-        public int MaxConnections
-        {
-            get
-            {
+        public int MaxConnections {
+            get {
                 return _maxConnections;
             }
-            set
-            {
+            set {
                 _maxConnections = value;
             }
         }
 
-        public int CurrentConnections
-        {
-            get
-            {
+        public int CurrentConnections {
+            get {
                 lock (this) { return m_connections.Count; }
             }
         }
