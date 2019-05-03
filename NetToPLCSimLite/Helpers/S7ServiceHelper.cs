@@ -1,4 +1,4 @@
-﻿using log4net;
+﻿using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,7 +15,6 @@ namespace NetToPLCSimLite.Helpers
     public class S7ServiceHelper
     {
         #region Fields
-        private readonly ILog log = LogExt.log;
         private TcpListener tcp;
         #endregion
 
@@ -24,9 +23,9 @@ namespace NetToPLCSimLite.Helpers
         {
             var services = ServiceController.GetServices();
             var s7svc = services.FirstOrDefault(x => x.ServiceName == "s7oiehsx" || x.ServiceName == "s7oiehsx64");
-
-            if (s7svc == null) log.Warn("NG, Can not find S7 online service.");
-            else log.Info("OK, Find S7 online service.");
+            
+            if (s7svc == null) Log.Warning($"{nameof(S7ServiceHelper)}.{nameof(FindS7Service)} - NG, Can not find S7 online service.");
+            else Log.Information($"{nameof(S7ServiceHelper)}.{nameof(FindS7Service)} - OK, find S7 online service.");
             return s7svc;
         }
 
@@ -40,12 +39,12 @@ namespace NetToPLCSimLite.Helpers
 
             if (svc.Status == ServiceControllerStatus.Running)
             {
-                log.Info("OK, Start S7 online service.");
+                Log.Information($"{nameof(S7ServiceHelper)}.{nameof(StartService)} - OK, Start S7 online service.");
                 return true;
             }
             else
             {
-                log.Warn("NG, Can not start S7 online service.");
+                Log.Warning($"{nameof(S7ServiceHelper)}.{nameof(StartService)} - NG, Can not start S7 online service.");
                 return false;
             }
         }
@@ -60,12 +59,12 @@ namespace NetToPLCSimLite.Helpers
 
             if (svc.Status == ServiceControllerStatus.Stopped)
             {
-                log.Info("OK, Stop S7 online service.");
+                Log.Information($"{nameof(S7ServiceHelper)}.{nameof(StopService)} - OK, Stop S7 online service.");
                 return true;
             }
             else
             {
-                log.Warn("NG, Can not stop S7 online service.");
+                Log.Warning($"{nameof(S7ServiceHelper)}.{nameof(StopService)} - NG, Can not stop S7 online service.");
                 return false;
             }
         }
@@ -78,18 +77,18 @@ namespace NetToPLCSimLite.Helpers
                 tcp.Start();
                 if (tcp.Server.IsBound)
                 {
-                    log.Info("OK, Start TCP Server.");
+                    Log.Information($"{nameof(S7ServiceHelper)}.{nameof(StartTcpServer)} - OK, Start TCP Server.");
                     return true;
                 }
                 else
                 {
-                    log.Warn("NG, Start TCP Server.");
+                    Log.Warning($"{nameof(S7ServiceHelper)}.{nameof(StartTcpServer)} - NG, Start TCP Server.");
                     return false;
                 }
             }
             catch (Exception ex)
             {
-                log.Error(nameof(StartTcpServer), ex);
+                Log.Error(ex, $"{nameof(S7ServiceHelper)}.{nameof(StartTcpServer)} - {ex.Message}");
                 StopTcpServer();
                 return false;
             }
@@ -102,18 +101,18 @@ namespace NetToPLCSimLite.Helpers
                 if (tcp != null) tcp.Stop();
                 if (!tcp.Server.IsBound)
                 {
-                    log.Info("OK, Stop TCP Server.");
+                    Log.Information($"{nameof(S7ServiceHelper)}.{nameof(StopTcpServer)} - OK, Stop TCP Server.");
                     return true;
                 }
                 else
                 {
-                    log.Warn("NG, Stop TCP Server.");
+                    Log.Warning($"{nameof(S7ServiceHelper)}.{nameof(StopTcpServer)} - NG, Stop TCP Server.");
                     return false;
                 }
             }
             catch (Exception ex)
             {
-                log.Error(nameof(StartTcpServer), ex);
+                Log.Error(ex, $"{nameof(S7ServiceHelper)}.{nameof(StopTcpServer)} - {ex.Message}");
                 return false;
             }
         }
@@ -140,12 +139,12 @@ namespace NetToPLCSimLite.Helpers
 
             if (isAvailable)
             {
-                log.Info($"OK, Port({port}) avilable.");
+                Log.Information($"{nameof(S7ServiceHelper)}.{nameof(IsPortAvailable)} - OK, Port({port}) avilable.");
                 return true;
             }
             else
             {
-                log.Warn($"NG, Port({port}) avilable.");
+                Log.Warning($"{nameof(S7ServiceHelper)}.{nameof(IsPortAvailable)} - NG, Port({port}) Not avilable.");
                 return false;
             }
         }

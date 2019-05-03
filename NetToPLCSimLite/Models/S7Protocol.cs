@@ -1,18 +1,21 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Net;
+using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Timers;
-using log4net;
 using S7PROSIMLib;
+using Serilog;
 
 namespace NetToPLCSimLite.Models
 {
-    public class S7Protocol : IDisposable
+    public class S7Protocol : IDisposable, INotifyPropertyChanged, IEquatable<S7Protocol>
     {
         #region Const
         private const byte S7COMM_TRANSPORT_SIZE_BIT = 1;
@@ -20,11 +23,11 @@ namespace NetToPLCSimLite.Models
         #endregion
 
         #region Fields
+        public event PropertyChangedEventHandler PropertyChanged;
         public Action<string> ErrorHandler;
 
-        private readonly ILog log = LogExt.log;
-        private S7ProSim plcsim = new S7ProSim();
-        private readonly Timer timer = new Timer();
+        private readonly S7ProSim plcsim = new S7ProSim();
+        private CompositeDisposable runDisposables;
         #endregion
 
         #region Properties
@@ -72,15 +75,20 @@ namespace NetToPLCSimLite.Models
                 if (IsConnected)
                 {
                     plcsim.SetScanMode(ScanModeConstants.ContinuousScan);
-                    timer.Elapsed -= Timer_Elapsed;
-                    timer.Elapsed += Timer_Elapsed;
-                    timer.Interval = 1000;
-                    timer.Start();
+
+                    runDisposables?.Dispose();
+                    runDisposables = new CompositeDisposable();
+                    runDisposables.Add(Observable.Interval(TimeSpan.FromSeconds(1))
+                        .Select(_ => plcsim?.GetState())
+                        .Where(x => !x.Contains("RUN"))
+                        .Subscribe(x => Plcsim_ConnectionError("Plc Stopped", -1)));
+
+                    Log.Information($"{nameof(S7Protocol)}.{nameof(Connect)} - Connected, Name:{Name}, IP:{Ip}, Instance:{Instance}");
                 }
             }
             catch (Exception ex)
             {
-                log.Error($"ERR, Name:{Name}, IP:{Ip}, INS:{PlcPath}", ex);
+                Log.Error(ex, $"{nameof(S7Protocol)}.{nameof(Connect)} - Name:{Name}, IP:{Ip}, Instance:{Instance}");
                 Disconnect();
             }
 
@@ -91,14 +99,12 @@ namespace NetToPLCSimLite.Models
         {
             try
             {
-                timer.Elapsed -= Timer_Elapsed;
-                timer.Stop();
-
+                runDisposables?.Dispose();
                 if (IsConnected)
                 {
                     plcsim.ConnectionError -= Plcsim_ConnectionError;
                     plcsim.Disconnect();
-                    log.Info($"DISCONNECTED, Name:{Name}, IP:{Ip}, INS:{Instance}");
+                    Log.Information($"{nameof(S7Protocol)}.{nameof(Disconnect)} - Disconnected, Name:{Name}, IP:{Ip}, Instance:{Instance}");
                 }
             }
             catch (Exception)
@@ -146,7 +152,7 @@ namespace NetToPLCSimLite.Models
             }
             catch (Exception ex)
             {
-                log.Error(nameof(DataReceived), ex);
+                Log.Error(ex, $"{nameof(S7Protocol)}.{nameof(DataReceived)} - Name:{Name}, IP:{Ip}, Instance:{Instance}, Data:{{ @data }}", data);
                 Disconnect();
             }
         }
@@ -157,32 +163,13 @@ namespace NetToPLCSimLite.Models
         {
             try
             {
-                log.Error($"PROSIM ERROR({Error}), Name:{Name}, IP:{Ip}, INS:{PlcPath}");
+                Log.Warning($"{nameof(S7Protocol)}.{nameof(Plcsim_ConnectionError)}.{ControlEngine} - Name:{Name}, IP:{Ip}, Instance:{Instance}");
                 Disconnect();
                 ErrorHandler?.Invoke(Ip);
             }
             catch (Exception ex)
             {
-                log.Error(nameof(Plcsim_ConnectionError), ex);
-            }
-        }
-
-        private void Timer_Elapsed(object sender, ElapsedEventArgs e)
-        {
-            try
-            {
-                var st = plcsim?.GetState() == "RUN_P" ? true : false;
-                if (!st)
-                {
-                    plcsim?.SetState("RUN_P");
-                    plcsim?.SetScanMode(ScanModeConstants.ContinuousScan);
-                }
-            }
-            catch (Exception ex)
-            {
-                timer.Elapsed -= Timer_Elapsed;
-                timer.Stop();
-                log.Error(nameof(Timer_Elapsed), ex);
+                Log.Error(ex, $"{nameof(S7Protocol)}.{nameof(Plcsim_ConnectionError)}.{ControlEngine} - Name:{Name}, IP:{Ip}, Instance:{Instance}");
             }
         }
         #endregion
@@ -197,8 +184,8 @@ namespace NetToPLCSimLite.Models
                 if (disposing)
                 {
                     // TODO: 관리되는 상태(관리되는 개체)를 삭제합니다.
+                    runDisposables?.Dispose();
                     Disconnect();
-                    plcsim = null;
                 }
 
                 // TODO: 관리되지 않는 리소스(관리되지 않는 개체)를 해제하고 아래의 종료자를 재정의합니다.
@@ -221,6 +208,24 @@ namespace NetToPLCSimLite.Models
             Dispose(true);
             // TODO: 위의 종료자가 재정의된 경우 다음 코드 줄의 주석 처리를 제거합니다.
             // GC.SuppressFinalize(this);
+        }
+        #endregion
+
+        #region IEquatable Support
+        public override bool Equals(object obj)
+        {
+            return Equals(obj as S7Protocol);
+        }
+
+        public bool Equals(S7Protocol other)
+        {
+            return other != null &&
+                   Ip == other.Ip;
+        }
+
+        public override int GetHashCode()
+        {
+            return 475518940 + EqualityComparer<string>.Default.GetHashCode(Ip);
         }
         #endregion
     }
